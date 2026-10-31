@@ -1,3 +1,5 @@
+import { isTouch } from '../core/Input';
+
 export interface Settings {
   quality: 'low' | 'medium' | 'high';
   master: number;
@@ -12,6 +14,10 @@ const ACTS = [
   { n: 'III', t: 'El Laberinto de Sombras', d: 'Diez pares de ojos · madres y cachorros' },
   { n: 'IV', t: 'El Umbral', d: 'Del ocaso a la noche · el regreso' },
 ];
+
+const KEYS = isTouch
+  ? '<b>Joystick</b> mover · <b>Al fondo</b> correr · <b>Deslizar</b> mirar · <b>Agachar</b> · <b>Flash</b> / tocar · <b>Parpadear</b> · <b>Saltar</b> cinemática · <b>❚❚</b> pausa'
+  : '<b>WASD</b> mover · <b>Shift</b> correr · <b>C</b> agacharse · <b>Ratón</b> mirar · <b>F / clic</b> flash · <b>Espacio</b> parpadear · <b>Enter</b> saltar cinemática · <b>Esc</b> pausa';
 
 const h = (html: string) => {
   const t = document.createElement('template');
@@ -43,9 +49,10 @@ export class UI {
     this.root = root;
     const saved = JSON.parse(localStorage.getItem('osos.settings') || 'null');
     const q = new URLSearchParams(location.search).get('q') as Settings['quality'] | null;
-    this.settings = { quality: 'medium', master: 0.85, music: 0.7, sfx: 0.9, sensitivity: 1, ...saved };
+    this.settings = { quality: isTouch ? 'low' : 'medium', master: 0.85, music: 0.7, sfx: 0.9, sensitivity: 1, ...saved };
     if (q) this.settings.quality = q;
     root.innerHTML = '';
+    document.body.classList.toggle('touch', isTouch);
     this.loader = h(`<div class="loader">
       <div class="loader-mark"><svg viewBox="0 0 120 60"><path d="M2 58 L34 18 L48 34 L66 8 L118 58" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></div>
       <div class="loader-title">Los Osos de la Sierra<br/><em>de la Sangre de Cristo</em></div>
@@ -71,14 +78,14 @@ export class UI {
         <label>Volumen general <input type="range" min="0" max="1" step="0.01" data-s="master"/></label>
         <label>Música <input type="range" min="0" max="1" step="0.01" data-s="music"/></label>
         <label>Efectos <input type="range" min="0" max="1" step="0.01" data-s="sfx"/></label>
-        <label>Sensibilidad del ratón <input type="range" min="0.3" max="2.5" step="0.05" data-s="sensitivity"/></label>
+        <label>${isTouch ? 'Sensibilidad táctil' : 'Sensibilidad del ratón'} <input type="range" min="0.3" max="2.5" step="0.05" data-s="sensitivity"/></label>
         <p class="note">Usa auriculares. La calidad recarga la experiencia.</p>
       </div>
       <div class="panel about hidden">
         <p>Antu y Nairoby suben al santuario de Lake Williams. Cuatro actos: el bosque que respira, el duelo de miradas con un grizzly a cinco metros, el laberinto de sombras con diez osos, y el umbral entre el ocaso y la noche.</p>
-        <p class="keys"><b>WASD</b> mover · <b>Shift</b> correr · <b>C</b> agacharse · <b>Ratón</b> mirar · <b>F / clic</b> flash · <b>Espacio</b> parpadear · <b>Enter</b> saltar cinemática · <b>Esc</b> pausa</p>
+        <p class="keys">${KEYS}</p>
       </div>
-      <footer class="lobby-foot">Auriculares recomendados · Pantalla completa <b>F11</b></footer>
+      <footer class="lobby-foot">${isTouch ? 'Auriculares recomendados · Juega con el teléfono en horizontal' : 'Auriculares recomendados · Pantalla completa <b>F11</b>'}</footer>
     </div>`);
     this.hud = h(`<div class="hud hidden">
       <div class="objective"></div>
@@ -94,9 +101,10 @@ export class UI {
     this.card = h(`<div class="actcard"><div class="n"></div><div class="t"></div><div class="d"></div></div>`);
     this.sub = h(`<div class="subtitle"></div>`);
     this.overlay = h(`<div class="overlay hidden"></div>`);
-    this.lockEl = h(`<div class="lock hidden"><div>Haz clic para tomar el control</div><small>WASD · Ratón · Shift</small></div>`);
+    this.lockEl = h(`<div class="lock hidden"><div>${isTouch ? 'Toca la pantalla para continuar' : 'Haz clic para tomar el control'}</div><small>${isTouch ? 'Joystick · Deslizar para mirar' : 'WASD · Ratón · Shift'}</small></div>`);
     this.skipEl = h(`<div class="skip hidden">Enter · saltar</div>`);
-    root.append(this.loader, this.lobby, this.hud, this.card, this.sub, this.overlay, this.lockEl, this.skipEl);
+    const rotate = h(`<div class="rotate"><svg viewBox="0 0 60 60"><rect x="18" y="8" width="24" height="44" rx="4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><div>Gira tu teléfono</div><small>La experiencia se juega en horizontal</small></div>`);
+    root.append(this.loader, this.lobby, this.hud, this.card, this.sub, this.overlay, this.lockEl, this.skipEl, rotate);
     this.obj = this.hud.querySelector('.objective')!;
     this.hintEl = this.hud.querySelector('.hint')!;
     this.reticleEl = this.hud.querySelector('.reticle')!;
@@ -131,6 +139,7 @@ export class UI {
   }
   showLobby(h: { start: () => void; chapter: (i: number) => void }) {
     this.lobby.classList.remove('hidden', 'out');
+    document.body.classList.remove('playing');
     this.hud.classList.add('hidden');
     const panels = this.lobby.querySelectorAll<HTMLElement>('.panel');
     const toggle = (name: string) => panels.forEach((p) => p.classList.toggle('hidden', !p.classList.contains(name) || !p.classList.contains('hidden')));
@@ -145,6 +154,7 @@ export class UI {
   }
   hideLobby() {
     this.lobby.classList.add('out');
+    document.body.classList.add('playing');
     setTimeout(() => this.lobby.classList.add('hidden'), 1400);
     this.hud.classList.remove('hidden');
   }
@@ -199,7 +209,7 @@ export class UI {
     this.lockEl.classList.toggle('hidden', !v);
   }
   skip(v: boolean) {
-    this.skipEl.classList.toggle('hidden', !v);
+    this.skipEl.classList.toggle('hidden', !v || isTouch);
   }
   gameOver(title: string, text: string, retry: () => void, menu: () => void) {
     this.overlay.innerHTML = `<div class="ov-box"><div class="eyebrow">Fin del duelo</div><h2>${title}</h2><p>${text}</p>
@@ -211,7 +221,7 @@ export class UI {
   pause(show: boolean, resume: () => void, menu: () => void) {
     if (!show) { this.overlay.classList.add('hidden'); return; }
     this.overlay.innerHTML = `<div class="ov-box"><div class="eyebrow">Pausa</div><h2>La montaña espera</h2>
-      <p class="keys"><b>WASD</b> mover · <b>Shift</b> correr · <b>C</b> agacharse · <b>F / clic</b> flash · <b>Espacio</b> parpadear</p>
+      <p class="keys">${KEYS}</p>
       <div class="ov-btns"><button class="primary" data-r>Continuar</button><button data-m>Volver al inicio</button></div></div>`;
     this.overlay.classList.remove('hidden');
     this.overlay.querySelector<HTMLButtonElement>('[data-r]')!.onclick = () => { this.overlay.classList.add('hidden'); resume(); };

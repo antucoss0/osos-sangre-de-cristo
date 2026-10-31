@@ -10,13 +10,13 @@ export interface Models {
 
 const BASE = import.meta.env.BASE_URL;
 
-export async function loadModels(onProgress: (p: number) => void): Promise<Models> {
+export async function loadModels(onProgress: (p: number) => void, mobile = false): Promise<Models> {
   const draco = new DRACOLoader();
   draco.setDecoderPath(`${BASE}draco/`);
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
   const files = { antu: 'antu.glb', nairoby: 'nairoby.glb', bear: 'bear.glb' } as const;
-  const sizes: Record<string, number> = { antu: 5.9e6, nairoby: 6.9e6, bear: 7.7e6 };
+  const sizes: Record<string, number> = mobile ? { antu: 3.6e6, nairoby: 3.5e6, bear: 3.2e6 } : { antu: 5.9e6, nairoby: 6.9e6, bear: 7.7e6 };
   const loaded: Record<string, number> = { antu: 0, nairoby: 0, bear: 0 };
   const total = () => Object.values(sizes).reduce((a, b) => a + b, 0);
   const report = () => onProgress(Object.values(loaded).reduce((a, b) => a + b, 0) / total());
@@ -25,7 +25,7 @@ export async function loadModels(onProgress: (p: number) => void): Promise<Model
       (k) =>
         new Promise<[string, GLTF]>((res, rej) =>
           loader.load(
-            `${BASE}models/${files[k]}`,
+            `${BASE}models/${mobile ? 'm/' : ''}${files[k]}`,
             (g) => {
               loaded[k] = sizes[k];
               report();
@@ -42,11 +42,11 @@ export async function loadModels(onProgress: (p: number) => void): Promise<Model
     ),
   );
   const out = Object.fromEntries(entries) as unknown as Models;
-  for (const g of Object.values(out)) prepare(g.scene);
+  for (const g of Object.values(out)) prepare(g.scene, mobile);
   return out;
 }
 
-export function prepare(root: THREE.Object3D) {
+export function prepare(root: THREE.Object3D, mobile = false) {
   root.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
@@ -60,7 +60,7 @@ export function prepare(root: THREE.Object3D) {
         s.envMapIntensity = 0.8;
         s.roughness = Math.max(s.roughness, 0.6);
         s.metalness = 0;
-        if (s.map) s.map.anisotropy = 8;
+        if (s.map) s.map.anisotropy = mobile ? 4 : 8;
       }
     }
   });

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { Engine, QUALITY } from '../core/Engine';
-import { Input } from '../core/Input';
+import { Engine, qualityFor } from '../core/Engine';
+import { Input, isTouch } from '../core/Input';
+import { TouchControls } from '../ui/TouchControls';
 import { StateMachine } from '../core/FSM';
 import { loadModels, type Models } from '../core/Assets';
 import { World } from '../world/World';
@@ -56,12 +57,14 @@ export class Game {
   beacon = new THREE.Group();
   beaconLight = new THREE.PointLight(0xffb070, 0, 30, 1.5);
   paused = false;
+  touchUI: TouchControls | null = null;
   private tmp = new THREE.Vector3();
   constructor() {
     const canvas = document.getElementById('gl') as HTMLCanvasElement;
     this.ui = new UI(document.getElementById('ui')!);
-    this.engine = new Engine(canvas, QUALITY[this.ui.settings.quality]);
+    this.engine = new Engine(canvas, qualityFor(this.ui.settings.quality, isTouch));
     this.input = new Input(canvas);
+    if (this.input.touch) this.touchUI = new TouchControls(document.getElementById('ui')!, this.input);
     this.director = new Director(this.engine);
     this.applySettings();
     this.ui.onSettings = () => this.applySettings();
@@ -77,7 +80,7 @@ export class Game {
     await new Promise((r) => setTimeout(r, 30));
     this.world = new World(this.engine.scene, this.engine.quality);
     this.ui.progress(0.15, 'Despertando a los osos…');
-    this.models = await loadModels((p) => this.ui.progress(0.15 + p * 0.8, 'Despertando a los osos…'));
+    this.models = await loadModels((p) => this.ui.progress(0.15 + p * 0.8, 'Despertando a los osos…'), this.engine.quality.mobile);
     const scene = this.engine.scene;
     this.player = new Player(this.models.antu, this.input, this.world.colliders, this.engine.camera);
     this.nai = new Companion(this.models.nairoby, this.player, this.world.colliders);
@@ -174,8 +177,8 @@ export class Game {
           g.input.unlock();
           g.input.enabled = false;
           g.ui.showLobby({
-            start: () => { g.audio.init(); g.ui.hideLobby(); g.input.enabled = true; g.fsm.go('Intro'); },
-            chapter: (i) => { g.audio.init(); g.ui.hideLobby(); g.input.enabled = true; g.jump(i); },
+            start: () => { g.touchUI?.fullscreen(); g.audio.init(); g.ui.hideLobby(); g.input.enabled = true; g.fsm.go('Intro'); },
+            chapter: (i) => { g.touchUI?.fullscreen(); g.audio.init(); g.ui.hideLobby(); g.input.enabled = true; g.jump(i); },
           });
         },
         update: (g: Game, _dt: number, t: number) => {
@@ -376,7 +379,7 @@ export class Game {
     this.ui.reticle(true);
     this.ui.actCard(1);
     this.ui.objective('Mantén la retícula sobre sus ojos');
-    setTimeout(() => this.fsm.is('Duel') && this.ui.hint('No apartes la mirada más de un segundo y medio · Espacio: parpadear', 7), 3500);
+    setTimeout(() => this.fsm.is('Duel') && this.ui.hint(`No apartes la mirada más de un segundo y medio · ${this.input.touch ? 'Desliza para seguir sus ojos' : 'Espacio: parpadear'}`, 7), 3500);
     this.audio.tension = 0.5;
     this.audio.heartRate = 78;
     this.input.lock();
@@ -514,7 +517,7 @@ export class Game {
     this.ui.objective('Revela a los osos ocultos en las sombras');
     this.ui.counter(true, 0, 1);
     this.ui.compass(true, 0);
-    setTimeout(() => this.fsm.is('Act3') && this.ui.hint('Busca los ojos en la oscuridad · F o clic: flash', 7), 6500);
+    setTimeout(() => this.fsm.is('Act3') && this.ui.hint(`Busca los ojos en la oscuridad · ${this.input.touch ? 'Toca o pulsa Flash' : 'F o clic: flash'}`, 7), 6500);
     this.audio.tension = 0.35;
     this.input.lock();
   }
@@ -605,10 +608,25 @@ export class Game {
   }
 
   // ───────────────────────── Loop
+  private updateTouch() {
+    const p = this.player;
+    const free = !this.paused && !this.director.playing && !this.fsm.is('Lobby', 'GameOver', 'Boot');
+    const roam = free && p.controllable && p.camMode === 'third';
+    this.touchUI!.setContext({
+      move: roam,
+      look: free && (p.controllable || p.camMode === 'first'),
+      crouch: roam,
+      flash: free && this.fsm.is('Act3'),
+      blink: free && this.fsm.is('Duel') && this.bear.fsm.is('Duel'),
+      skip: !this.paused && this.director.playing,
+      pause: roam,
+    });
+  }
   loop() {
     const dt = Math.min(this.clock.getDelta(), 1 / 20);
     this.time += dt;
     const inp = this.input;
+    if (this.touchUI) this.updateTouch();
     if (inp.pressed('Enter') && this.director.playing) this.director.skip();
     if (inp.pressed('Escape') && !inp.locked && this.player.controllable) {
       this.paused = true;
