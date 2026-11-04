@@ -232,6 +232,11 @@ export class Game {
     this.bear.eyeGlow = 1;
     this.bear.gap = 6.5;
   }
+  private overShoulder(y: number) {
+    const w = G(WAKE.x, WAKE.z);
+    const d = V(WAKE.x - BEAR_TREE.x, 0, WAKE.z - BEAR_TREE.z).normalize();
+    return w.add(V(d.x * 2.4 + d.z * 0.9, y, d.z * 2.4 - d.x * 0.9));
+  }
   private bearEye() {
     return this.bear.eyePos(new THREE.Vector3());
   }
@@ -285,6 +290,7 @@ export class Game {
           g.ui.objective(t('obj_lake'));
           g.setTod(0.2, 1 / 160);
           g.audio.tension = 0;
+          g.later(5, () => g.say('lake_n'));
         },
         update: (g: Game) => {
           const p = g.player.position;
@@ -470,7 +476,7 @@ export class Game {
         onUpdate: (k) => { this.setFx('blink', k < 0.3 ? 1 - k * 2.4 : k < 0.45 ? 0.7 : Math.max(0, 1 - k * 1.2), 12); },
       },
       {
-        dur: 3.6, pos: wake.clone().add(V(0.3, 0.5, 0.4)), pos2: wake.clone().add(V(0.1, 1.5, 0.2)), look: wake.clone().add(V(-4, 1.5, -3)),
+        dur: 3.6, pos: () => this.overShoulder(0.6), pos2: () => this.overShoulder(1.5), look: wake.clone().add(V(-4, 1.5, -3)),
         look2: () => this.bearEye(), fov: 50, fov2: 40, ease: ease.inOut, focus: () => this.engine.camera.position.distanceTo(this.bear.position), range: 3, bokeh: 4,
         onStart: () => { this.ui.subtitle('', t('cap_bear'), 3); this.audio.growl(9, 0.6); },
       },
@@ -497,7 +503,7 @@ export class Game {
     this.player.camMode = 'first';
     const eye = this.bearEye(), p = this.player.position;
     this.player.yaw = Math.atan2(eye.x - p.x, eye.z - p.z);
-    this.player.pitch = -Math.atan2(eye.y - (p.y + 1.62), Math.hypot(eye.x - p.x, eye.z - p.z)) * 0.85;
+    this.player.pitch = -Math.atan2(eye.y - (p.y + 1.62), Math.hypot(eye.x - p.x, eye.z - p.z));
     this.player.char.root.visible = false;
     this.setFx('fade', 0, 1);
     this.setFx('blink', 0, 8);
@@ -531,7 +537,7 @@ export class Game {
     const fovTarget = this.engine.baseFov - (on ? 6 : 0) - d.balance * 4;
     cam.fov += (fovTarget + Math.sin(this.time * 1.4) * 0.6 * (1 + d.agitation) - cam.fov) * (1 - Math.exp(-2 * dt));
     cam.updateProjectionMatrix();
-    const scoring = d.t > 1.5;
+    const scoring = d.t > 2.5;
     if (scoring) {
       if (on) { d.lost = 0; d.balance += dt / 7; d.agitation -= dt * 0.25; }
       else { d.lost += dt; d.agitation += dt * 0.25; d.balance = Math.max(0, d.balance - dt * 0.04); }
@@ -539,11 +545,11 @@ export class Game {
       if (this.input.pressed('Space')) { d.blinkT = 0.22; d.strain = 0; d.agitation += 0.3; this.ui.hint(t('blinked'), 2.5); }
       d.agitation = clamp(d.agitation, 0, 1.2);
       b.agitation = d.agitation;
-      if (d.lost > 2 || d.agitation >= 1) {
+      if (d.lost > 2.5 || d.agitation >= 1) {
         d.over = true;
         b.stand.copy(G(WAKE.x + (BEAR_TREE.x - WAKE.x) * 0.3, WAKE.z + (BEAR_TREE.z - WAKE.z) * 0.3));
         b.fsm.go('Leap');
-        this.fail('f_duel_t', d.lost > 2 ? 'f_look' : 'f_fear', 'Duel');
+        this.fail('f_duel_t', d.lost > 2.5 ? 'f_look' : 'f_fear', 'Duel');
         return;
       }
       if (d.balance >= 1) { d.over = true; this.audio.sting(); this.fsm.go('Vamos'); return; }
@@ -557,7 +563,7 @@ export class Game {
     this.audio.tension = 0.4 + d.agitation * 0.6;
     this.audio.heartRate = 70 + d.agitation * 80;
     this.bear.auraLevel = 1 + d.agitation * 0.6;
-    this.ui.duelHUD(scoring, d.balance, d.strain, clamp(d.lost / 2, 0, 1));
+    this.ui.duelHUD(scoring, d.balance, d.strain, clamp(d.lost / 2.5, 0, 1));
   }
 
   // ───────────────────────── ¡Vamos! (~8 s)
@@ -652,7 +658,7 @@ export class Game {
       const d = b.position.distanceTo(p);
       if (d < nearest) { nearest = d; hot = b; }
       const eye = b.eyePos(new THREE.Vector3()).sub(cam.position);
-      const look = d < 20 && fwd.angleTo(eye.normalize()) < 0.16;
+      const look = d < 14 && fwd.angleTo(eye.normalize()) < 0.16;
       if (d < 6) inc += (6 - d) * 0.22 * (crouch ? 0.45 : 1);
       if (look) inc += crouch ? 0.3 : 0.55;
       if (sp > 3 && d < 10) inc += 0.4;
@@ -726,7 +732,7 @@ export class Game {
       look: free && (p.controllable || p.camMode === 'first'),
       crouch: roam,
       touch: free && this.fsm.is('Climb') && this.nearStone,
-      blink: free && this.fsm.is('Duel') && this.duel.t > 1.5 && !this.duel.over,
+      blink: free && this.fsm.is('Duel') && this.duel.t > 2.5 && !this.duel.over,
       skip: !this.paused && this.director.playing,
       pause: roam,
     });

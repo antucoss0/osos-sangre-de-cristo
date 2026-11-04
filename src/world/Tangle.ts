@@ -3,8 +3,16 @@ import { DARK, heightAt, lakeDist, WATER_Y } from './Terrain';
 
 /** Story anchors around the dark corner of the lake. */
 export const STONE = { x: -88, z: 27 };
-export const WAKE = { x: -70, z: 13 };
-export const BEAR_TREE = { x: -79, z: 5 };
+export const WAKE = { x: -67, z: 16 };
+export const BEAR_TREE = { x: -74, z: 0 };
+
+/** Keeps the sight line from the fall spot up to the bear's branch free of trees. */
+export function inClearing(x: number, z: number) {
+  const ax = WAKE.x, az = WAKE.z, bx = BEAR_TREE.x - ax, bz = BEAR_TREE.z - az;
+  const k = Math.max(0, Math.min(1, ((x - ax) * bx + (z - az) * bz) / (bx * bx + bz * bz)));
+  const d = Math.hypot(x - (ax + bx * k), z - (az + bz * k));
+  return d < 6 || Math.hypot(x - ax, z - az) < 9;
+}
 
 function rng(seed: number) {
   let s = seed;
@@ -52,7 +60,7 @@ export function createTangle() {
   for (let i = 0; i < 16; i++) {
     const a = r() * Math.PI * 2, d = 6 + r() * DARK.r * 1.1;
     const x = DARK.x - 6 + Math.cos(a) * d, z = DARK.z + Math.sin(a) * d;
-    if (lakeDist(x, z) < 1.0) continue;
+    if (lakeDist(x, z) < 1.0 || inClearing(x, z)) continue;
     const hgt = 6 + r() * 8, y = heightAt(x, z);
     const s = new THREE.Mesh(snagGeo, deadBark);
     s.scale.set(1, hgt, 1); s.position.set(x, y + hgt / 2, z); s.rotation.z = (r() - 0.5) * 0.15; s.castShadow = true;
@@ -74,7 +82,7 @@ export function createTangle() {
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 1.5, 26, 14), bark);
   trunk.position.set(tx, ty + 13, tz); trunk.castShadow = true;
   group.add(trunk);
-  const branchLen = 6, branchY = 7.4;
+  const branchLen = 4.2, branchY = 7.4;
   const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.7, branchLen, 10), bark);
   branch.position.set(tx + Math.sin(toWake) * branchLen * 0.5, ty + branchY, tz + Math.cos(toWake) * branchLen * 0.5);
   branch.rotation.set(Math.PI / 2 - 0.08, toWake, 0, 'YXZ');
@@ -86,6 +94,6 @@ export function createTangle() {
     group.add(cone);
   }
   colliders.push({ x: tx, z: tz, r: 1.7 });
-  const perch = new THREE.Vector3(tx + Math.sin(toWake) * 3.6, ty + branchY + 0.55, tz + Math.cos(toWake) * 3.0);
+  const perch = new THREE.Vector3(tx + Math.sin(toWake) * 2.9, ty + branchY + 0.55, tz + Math.cos(toWake) * 2.9);
   return { group, colliders, perch, perchHeading: toWake };
 }

@@ -1,3 +1,4 @@
+import { WAKE, BEAR_TREE } from './Tangle';
 import * as THREE from 'three';
 import { mulberry32, fbm2, GLSL_NOISE } from '../core/noise';
 import { heightAt, lakeDist, talusMask, normalAt } from './Terrain';
@@ -69,6 +70,7 @@ export function createTalus(count = 2600) {
   let placed = 0;
   for (let i = 0; i < count * 6 && placed < count; i++) {
     const x = (r() - 0.5) * 380, z = (r() - 0.5) * 380;
+    if (Math.hypot(x - WAKE.x, z - WAKE.z) < 8 || Math.hypot(x - BEAR_TREE.x, z - BEAR_TREE.z) < 5) continue;
     const t = talusMask(x, z);
     const ld = lakeDist(x, z);
     const shoreBand = ld > 0.92 && ld < 1.22 ? 1 : 0;

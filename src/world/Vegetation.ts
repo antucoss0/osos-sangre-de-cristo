@@ -1,3 +1,4 @@
+import { inClearing } from './Tangle';
 import * as THREE from 'three';
 import { mulberry32, GLSL_NOISE } from '../core/noise';
 import { heightAt, lakeDist, talusMask, trailDistance, slopeAt, WORLD } from './Terrain';
@@ -173,7 +174,7 @@ export function createForest(density = 1): Forest {
     if (ld < 1.12) continue;
     const tal = talusMask(x, z);
     if (r() < tal * 0.82) continue;
-    if (trailDistance(x, z) < 3.5) continue;
+    if (trailDistance(x, z) < 3.5 || inClearing(x, z)) continue;
     if (slopeAt(x, z) > 1.3) continue;
     // keep open clearings near the lake shore for views
     if (ld < 1.5 && r() < 0.6) continue;

@@ -147,7 +147,7 @@ export class Player {
     if (!this.input.locked) return;
     this.yaw -= this.input.mouseDX * 0.0021 * sens;
     this.pitch += this.input.mouseDY * 0.0021 * sens;
-    this.pitch = clamp(this.pitch, this.camMode === 'first' ? -0.9 : -0.45, this.camMode === 'first' ? 0.9 : 0.95);
+    this.pitch = clamp(this.pitch, this.camMode === 'first' ? -1.25 : -0.45, this.camMode === 'first' ? 0.9 : 0.95);
   }
   update(dt: number, time: number) {
     if (this.controllable || this.camMode === 'first') this.updateLook();

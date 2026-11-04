@@ -49,7 +49,7 @@ export class Bear {
       this.aura = new THREE.Group();
       const am = new THREE.SpriteMaterial({ map: auraTex, color: 0x4fa8ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
       const sp = new THREE.Sprite(am);
-      sp.scale.setScalar(4.6 * (opts.scale ?? 1.15));
+      sp.scale.setScalar(3.2 * (opts.scale ?? 1.15));
       const light = new THREE.PointLight(0x3d8cff, 0, 22, 1.6);
       this.aura.add(sp, light);
       this.aura.userData = { mat: am, light };
@@ -57,8 +57,8 @@ export class Bear {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
         const mat = (m.material as THREE.MeshStandardMaterial).clone();
-        mat.emissive = new THREE.Color(0x0b2a66);
-        mat.emissiveIntensity = 0.55;
+        mat.emissive = new THREE.Color(0x1a4fa8);
+        mat.emissiveIntensity = 0.8;
         m.material = mat;
       });
     }
@@ -181,7 +181,7 @@ export class Bear {
       this.aura.position.y += 0.75 * s;
       const vis = this.char.root.visible ? 1 : 0;
       const pulse = 0.82 + Math.sin(this.time * 1.7) * 0.12 + Math.sin(this.time * 4.3) * 0.05;
-      (this.aura.userData.mat as THREE.SpriteMaterial).opacity = this.auraLevel * vis * pulse * 0.75;
+      (this.aura.userData.mat as THREE.SpriteMaterial).opacity = this.auraLevel * vis * pulse * 0.42;
       (this.aura.userData.light as THREE.PointLight).intensity = this.auraLevel * vis * pulse * 60;
     }
     const s = speedOf(this.char);
@@ -203,8 +203,8 @@ const eyeTex = (() => {
   const g = c.getContext('2d')!;
   const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   gr.addColorStop(0, 'rgba(255,255,255,1)');
-  gr.addColorStop(0.15, 'rgba(255,220,150,0.9)');
-  gr.addColorStop(0.5, 'rgba(255,120,30,0.25)');
+  gr.addColorStop(0.15, 'rgba(255,255,255,0.9)');
+  gr.addColorStop(0.5, 'rgba(255,255,255,0.25)');
   gr.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
   return new THREE.CanvasTexture(c);
