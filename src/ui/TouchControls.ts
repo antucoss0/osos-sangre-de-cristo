@@ -1,10 +1,11 @@
+import { t } from '../i18n';
 import type { Input } from '../core/Input';
 
 export interface TouchContext {
   move: boolean;
   look: boolean;
   crouch: boolean;
-  flash: boolean;
+  touch: boolean;
   blink: boolean;
   skip: boolean;
   pause: boolean;
@@ -35,11 +36,11 @@ export class TouchControls {
       <div class="t-look"></div>
       <div class="t-stick"><div class="t-base"><i></i></div></div>
       <div class="t-btns">
-        <button data-b="crouch" class="t-btn">Agachar</button>
-        <button data-b="flash" class="t-btn t-big">Flash</button>
-        <button data-b="blink" class="t-btn">Parpadear</button>
+        <button data-b="crouch" class="t-btn" data-t="t_crouch">${t('t_crouch')}</button>
+        <button data-b="touch" class="t-btn t-big" data-t="t_touch">${t('t_touch')}</button>
+        <button data-b="blink" class="t-btn" data-t="t_blink">${t('t_blink')}</button>
       </div>
-      <button data-b="skip" class="t-skip">Saltar ›</button>
+      <button data-b="skip" class="t-skip" data-t="t_skip">${t('t_skip')}</button>
       <button data-b="pause" class="t-pause" aria-label="Pausa"><i></i><i></i></button>
     </div>`);
     parent.append(this.root);
@@ -50,7 +51,7 @@ export class TouchControls {
     this.bindStick();
     this.bindLook();
     this.bindButtons();
-    this.setContext({ move: false, look: false, crouch: false, flash: false, blink: false, skip: false, pause: false });
+    this.setContext({ move: false, look: false, crouch: false, touch: false, blink: false, skip: false, pause: false });
   }
 
   private bindStick() {
@@ -122,7 +123,7 @@ export class TouchControls {
   private bindButtons() {
     const act: Record<string, () => void> = {
       crouch: () => { this.crouchOn = !this.crouchOn; this.input.setKey('KeyC', this.crouchOn); },
-      flash: () => this.input.tap('KeyF'),
+      touch: () => this.input.tap('KeyE'),
       blink: () => this.input.tap('Space'),
       skip: () => this.input.tap('Enter'),
       pause: () => { this.input.unlock(); this.input.tap('Escape'); },

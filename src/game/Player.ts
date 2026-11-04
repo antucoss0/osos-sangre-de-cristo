@@ -79,6 +79,7 @@ export class Player {
     this.char.heading = heading;
     this.yaw = heading;
     this.char.velocity.set(0, 0, 0);
+    this.scriptTarget = null;
     this.snapCamera();
   }
   aim() {

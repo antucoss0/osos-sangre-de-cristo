@@ -1,0 +1,18 @@
+{
+  "trail_n": { "s": "Nairoby", "es": "Aquí se acaba el sendero.", "en": "This is where the trail ends." },
+  "trail_a": { "s": "Antu", "es": "Entonces aquí empieza lo nuestro.", "en": "Then this is where ours begins." },
+  "lake_n": { "s": "Nairoby", "es": "Las piedras no nos dejan pasar. Hay que rodear el lago.", "en": "The rocks won't let us through. We have to go around the lake." },
+  "glint_n": { "s": "Nairoby", "es": "¡Antu, mira! Allá arriba, en la montaña… algo brilla.", "en": "Antu, look! Up there on the mountain… something is shining." },
+  "glint_a": { "s": "Antu", "es": "No, Nai. Está muy alto y ya va a oscurecer.", "en": "No, Nai. It's too high, and it's getting dark." },
+  "glint_n2": { "s": "Nairoby", "es": "Vinimos a encontrarnos, ¿no? Confía en mí. Solo una vez.", "en": "We came here to find ourselves, right? Trust me. Just this once." },
+  "glint_a2": { "s": "Antu", "es": "Está bien… vamos.", "en": "Okay… let's go." },
+  "stone_a": { "s": "Antu", "es": "Es una piedra… está tibia.", "en": "It's a stone… it's warm." },
+  "fall_n": { "s": "Nairoby", "es": "¡Antu!", "en": "Antu!" },
+  "duel_n": { "s": "Nairoby", "es": "Antu… arriba, en el árbol. No apartes la mirada.", "en": "Antu… up in the tree. Don't look away." },
+  "vamos_n": { "s": "Nairoby", "es": "¡Vamos! ¡Ahora!", "en": "Let's go! Now!" },
+  "chase_a": { "s": "Antu", "es": "Está bajando del árbol… nos sigue.", "en": "It's climbing down… it's following us." },
+  "pack_n": { "s": "Nairoby", "es": "Hay más… no los mires a los ojos. Sigue caminando.", "en": "There are more… don't look them in the eye. Keep walking." },
+  "pack_a": { "s": "Antu", "es": "Despacio. No somos una amenaza.", "en": "Slowly. We're not a threat." },
+  "exit_n": { "s": "Nairoby", "es": "Lo logramos… estamos fuera.", "en": "We made it… we're out." },
+  "exit_a": { "s": "Antu", "es": "Nos dejaron ir. Creo que por fin nos encontramos.", "en": "They let us go. I think we finally found ourselves." }
+}

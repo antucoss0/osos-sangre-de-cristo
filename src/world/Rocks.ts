@@ -71,7 +71,7 @@ export function createTalus(count = 2600) {
     const x = (r() - 0.5) * 380, z = (r() - 0.5) * 380;
     const t = talusMask(x, z);
     const ld = lakeDist(x, z);
-    const shoreBand = ld > 0.9 && ld < 1.25 ? 0.9 : 0;
+    const shoreBand = ld > 0.92 && ld < 1.22 ? 1 : 0;
     const p = Math.max(t, shoreBand);
     if (r() > p * p) continue;
     const big = r() < 0.08;

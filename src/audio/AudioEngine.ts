@@ -5,6 +5,10 @@ export class AudioEngine {
   private music!: GainNode;
   private sfx!: GainNode;
   private amb!: GainNode;
+  private voiceGain!: GainNode;
+  private vbuf = new Map<string, AudioBuffer>();
+  private vsrc: AudioBufferSourceNode | null = null;
+  voiceVol = 1;
   private noise!: AudioBuffer;
   private windGain!: GainNode;
   private windFilter!: BiquadFilterNode;
@@ -22,6 +26,31 @@ export class AudioEngine {
   psy = 0;
   volumes = { master: 0.85, music: 0.7, sfx: 0.9 };
 
+  loadVoices(urls: string[]) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    for (const u of urls) {
+      if (this.vbuf.has(u)) continue;
+      fetch(u).then((r) => r.arrayBuffer()).then((b) => ctx.decodeAudioData(b)).then((ab) => this.vbuf.set(u, ab)).catch(() => {});
+    }
+  }
+  /** Plays a dialogue clip; returns its duration (0 if not loaded yet). */
+  voice(url: string) {
+    const ctx = this.ctx, b = this.vbuf.get(url);
+    if (!ctx || !b) return 0;
+    this.stopVoice();
+    const s = ctx.createBufferSource();
+    s.buffer = b;
+    this.voiceGain.gain.value = 1.15 * this.voiceVol;
+    s.connect(this.voiceGain);
+    s.start();
+    this.vsrc = s;
+    return b.duration;
+  }
+  stopVoice() {
+    try { this.vsrc?.stop(); } catch { /* already stopped */ }
+    this.vsrc = null;
+  }
   init() {
     if (this.ctx) { void this.ctx.resume(); return; }
     const ctx = new AudioContext();
@@ -36,6 +65,8 @@ export class AudioEngine {
     this.music = ctx.createGain(); this.music.connect(this.master); this.music.connect(rev);
     this.sfx = ctx.createGain(); this.sfx.connect(this.master); this.sfx.connect(rev);
     this.amb = ctx.createGain(); this.amb.connect(this.master);
+    this.voiceGain = ctx.createGain(); this.voiceGain.connect(this.master);
+    const vr = ctx.createGain(); vr.gain.value = 0.25; this.voiceGain.connect(vr).connect(rev);
     this.applyVolumes();
     const len = ctx.sampleRate * 4;
     this.noise = ctx.createBuffer(2, len, ctx.sampleRate);

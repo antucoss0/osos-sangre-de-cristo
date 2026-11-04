@@ -203,3 +203,62 @@ body.touch { -webkit-user-select: none; user-select: none; -webkit-touch-callout
   .chapters button { padding: 7px 10px; }
   .chapters small { display: none; }
 }
+
+/* ── v2: sober monochrome, centered lobby ── */
+:root { --gold: #ffffff; --ivory: #e8e8e8; }
+.lobby-grad { background: radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.78) 62%, rgba(0,0,0,0.94) 100%); -webkit-backdrop-filter: grayscale(1) contrast(1.05); backdrop-filter: grayscale(1) contrast(1.05); }
+.lobby-main { left: 50%; right: auto; top: 50%; transform: translate(-50%, -50%); max-width: 760px; width: 90vw; text-align: center; animation: fade 1.6s ease both; transition: top .6s ease; }
+.lobby:has(.panel:not(.hidden)) .lobby-main { top: 30%; }
+.eyebrow { color: rgba(255,255,255,0.62); }
+.lobby h1 { font-size: clamp(48px, 6.4vw, 92px); color: #fff; }
+.lobby h1 span { color: rgba(255,255,255,0.62); font-size: 0.34em; }
+.lobby-rule { width: 56px; height: 1px; background: rgba(255,255,255,0.55); margin: 26px auto 18px; }
+.lobby-sub { font-family: var(--caps); font-size: 11px; letter-spacing: 0.42em; text-transform: uppercase; color: rgba(255,255,255,0.7); margin: 0 0 40px; }
+.menu { align-items: center; gap: 2px; }
+.menu button { color: #fff; font-size: 20px; letter-spacing: 0.08em; }
+.menu button:hover { transform: none; opacity: 1; }
+.menu button.primary { font-family: var(--caps); font-size: 13px; letter-spacing: 0.5em; text-transform: uppercase; padding: 15px 44px 15px 50px; margin-bottom: 18px; border: 1px solid rgba(255,255,255,0.75); transition: background .4s, color .4s; }
+.menu button.primary:hover { background: #fff; color: #000; }
+.panel { left: 50%; right: auto; top: auto; bottom: 7vh; transform: translateX(-50%); width: min(560px, 90vw); max-height: 40vh; overflow: auto; background: rgba(0,0,0,0.72); border: 1px solid rgba(255,255,255,0.16); text-align: left; }
+.panel p { color: #d6d6d6; }
+.chapters button { color: #fff; }
+.settings input[type=range] { accent-color: #fff; }
+.lobby-lang { position: absolute; top: 30px; right: 40px; display: flex; align-items: center; gap: 12px; z-index: 2; }
+.lobby-lang i { width: 1px; height: 12px; background: rgba(255,255,255,0.35); }
+.lobby-lang button { background: none; border: 0; color: rgba(255,255,255,0.45); font-family: var(--caps); font-size: 11px; letter-spacing: 0.3em; cursor: pointer; padding: 4px 2px; }
+.lobby-lang button.on { color: #fff; border-bottom: 1px solid #fff; }
+.lobby-foot { left: 0; right: 0; text-align: center; color: rgba(255,255,255,0.4); }
+.menu-btn { position: absolute; top: 26px; right: 30px; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.45); color: #fff; font-family: var(--caps); font-size: 10px; letter-spacing: 0.35em; text-transform: uppercase; padding: 9px 14px 9px 18px; cursor: pointer; pointer-events: auto; z-index: 25; transition: background .3s, color .3s; }
+.menu-btn:hover { background: #fff; color: #000; }
+.threat { position: absolute; top: 76px; left: 50%; transform: translateX(-50%); width: 220px; text-align: center; transition: opacity .5s; }
+.threat em { display: block; font-family: var(--caps); font-style: normal; font-size: 9px; letter-spacing: 0.45em; text-transform: uppercase; color: rgba(255,255,255,0.75); margin-bottom: 8px; }
+.threat .bar { height: 2px; background: rgba(255,255,255,0.18); }
+.threat .bar i { display: block; height: 100%; background: #fff; transform-origin: left; transform: scaleX(0); transition: transform .15s; }
+.threat.hot .bar i { background: #ff5a4a; box-shadow: 0 0 10px rgba(255,90,74,0.7); }
+.t-btn, .t-skip, .t-pause { border-color: rgba(255,255,255,0.5); }
+@media (max-width: 900px), (max-height: 520px) {
+  .lobby-main { left: 50%; right: auto; transform: translate(-50%, -50%); width: 88vw; }
+  .lobby:has(.panel:not(.hidden)) .lobby-main { top: 26%; }
+  .lobby h1 { font-size: clamp(34px, 8vw, 56px); }
+  .lobby-rule { margin: 12px auto 10px; }
+  .lobby-sub { margin: 0 0 16px; font-size: 9px; }
+  .menu button.primary { padding: 11px 30px 11px 36px; margin-bottom: 8px; font-size: 11px; }
+  .menu button { font-size: 16px; padding: 5px 0; }
+  .lobby-lang { top: calc(12px + env(safe-area-inset-top)); right: calc(16px + env(safe-area-inset-right)); }
+  .panel { bottom: 3vh; max-height: 44vh; padding: 18px; }
+  .menu-btn { top: calc(10px + env(safe-area-inset-top)); right: auto; left: calc(12px + env(safe-area-inset-left)); padding: 7px 10px 7px 13px; }
+  .threat { top: 46px; width: 160px; }
+}
+.lobby:has(.panel:not(.hidden)) .lobby-main { top: 22%; }
+.lobby:has(.panel:not(.hidden)) .eyebrow,
+.lobby:has(.panel:not(.hidden)) .lobby-rule,
+.lobby:has(.panel:not(.hidden)) .lobby-sub { display: none; }
+.lobby:has(.panel:not(.hidden)) .menu { flex-direction: row; justify-content: center; gap: 26px; margin-top: 18px; }
+.lobby:has(.panel:not(.hidden)) .menu button.primary { margin-bottom: 0; padding: 8px 22px 8px 28px; }
+.lobby .panel { bottom: 5vh; max-height: 50vh; }
+@media (max-width: 900px), (max-height: 520px) {
+  .lobby:has(.panel:not(.hidden)) .lobby-main { top: 20%; }
+  .lobby:has(.panel:not(.hidden)) .lobby h1 { font-size: 30px; }
+  .lobby:has(.panel:not(.hidden)) .menu { gap: 14px; margin-top: 8px; }
+  .lobby .panel { bottom: 3vh; max-height: 52vh; }
+}

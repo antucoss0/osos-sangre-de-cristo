@@ -1,4 +1,5 @@
 import { isTouch } from '../core/Input';
+import { t, lang, setLang, applyLang, type StrKey } from '../i18n';
 
 export interface Settings {
   quality: 'low' | 'medium' | 'high';
@@ -6,18 +7,17 @@ export interface Settings {
   music: number;
   sfx: number;
   sensitivity: number;
+  voice: number;
 }
 
-const ACTS = [
-  { n: 'I', t: 'El Santuario', d: 'Bosque alpino · Lake Williams · la tarde' },
-  { n: 'II', t: 'El Duelo de Ojos', d: 'El quiebre · cinco metros · no apartes la mirada' },
-  { n: 'III', t: 'El Laberinto de Sombras', d: 'Diez pares de ojos · madres y cachorros' },
-  { n: 'IV', t: 'El Umbral', d: 'Del ocaso a la noche · el regreso' },
+const ACTS: { n: string; t: StrKey; d: StrKey }[] = [
+  { n: 'I', t: 'a1t', d: 'a1d' },
+  { n: 'II', t: 'a2t', d: 'a2d' },
+  { n: 'III', t: 'a3t', d: 'a3d' },
 ];
 
-const KEYS = isTouch
-  ? '<b>Joystick</b> mover · <b>Al fondo</b> correr · <b>Deslizar</b> mirar · <b>Agachar</b> · <b>Flash</b> / tocar · <b>Parpadear</b> · <b>Saltar</b> cinemática · <b>❚❚</b> pausa'
-  : '<b>WASD</b> mover · <b>Shift</b> correr · <b>C</b> agacharse · <b>Ratón</b> mirar · <b>F / clic</b> flash · <b>Espacio</b> parpadear · <b>Enter</b> saltar cinemática · <b>Esc</b> pausa';
+const keys = () => t(isTouch ? 'keys_touch' : 'keys_desk');
+const T = (k: StrKey) => `<span data-t="${k}">${t(k)}</span>`;
 
 const h = (html: string) => {
   const t = document.createElement('template');
@@ -37,7 +37,9 @@ export class UI {
   private reticleEl: HTMLElement;
   private duel: HTMLElement;
   private compassEl: HTMLElement;
-  private counterEl: HTMLElement;
+  private threatEl: HTMLElement;
+  private menuBtn: HTMLButtonElement;
+  onMenu: (() => void) | null = null;
   private overlay: HTMLElement;
   private lockEl: HTMLElement;
   private skipEl: HTMLElement;
@@ -49,43 +51,45 @@ export class UI {
     this.root = root;
     const saved = JSON.parse(localStorage.getItem('osos.settings') || 'null');
     const q = new URLSearchParams(location.search).get('q') as Settings['quality'] | null;
-    this.settings = { quality: isTouch ? 'low' : 'medium', master: 0.85, music: 0.7, sfx: 0.9, sensitivity: 1, ...saved };
+    this.settings = { quality: isTouch ? 'low' : 'medium', master: 0.85, music: 0.7, sfx: 0.9, sensitivity: 1, voice: 1, ...saved };
     if (q) this.settings.quality = q;
     root.innerHTML = '';
     document.body.classList.toggle('touch', isTouch);
     this.loader = h(`<div class="loader">
       <div class="loader-mark"><svg viewBox="0 0 120 60"><path d="M2 58 L34 18 L48 34 L66 8 L118 58" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></div>
-      <div class="loader-title">Los Osos de la Sierra<br/><em>de la Sangre de Cristo</em></div>
+      <div class="loader-title">${T('title')}<br/><em>${T('title2')}</em></div>
       <div class="loader-bar"><i></i></div>
-      <div class="loader-txt">Preparando la montaña…</div></div>`);
+      <div class="loader-txt">${t('load_mtn')}</div></div>`);
     this.lobby = h(`<div class="lobby hidden">
       <div class="lobby-grad"></div>
-      <header class="lobby-top"><span>Taos Ski Valley · Nuevo México</span><span>3 400 m · 36.58°N 105.43°W</span></header>
+      <div class="lobby-lang"><button data-lang="es">ES</button><i></i><button data-lang="en">EN</button></div>
       <div class="lobby-main">
-        <div class="eyebrow">Una experiencia cinemática</div>
-        <h1>Los Osos<br/><span>de la Sierra de la Sangre de Cristo</span></h1>
-        <div class="lobby-sub">El Duelo de Taos</div>
+        <div class="eyebrow">${T('eyebrow')}</div>
+        <h1><div data-t="title">${t('title')}</div><span data-t="title2">${t('title2')}</span></h1>
+        <div class="lobby-rule"></div>
+        <div class="lobby-sub">${T('tagline')}</div>
         <nav class="menu">
-          <button data-a="start" class="primary"><span>Comenzar el viaje</span><i></i></button>
-          <button data-a="chapters"><span>Capítulos</span></button>
-          <button data-a="settings"><span>Ajustes</span></button>
-          <button data-a="about"><span>Sobre la experiencia</span></button>
+          <button data-a="start" class="primary">${T('start')}</button>
+          <button data-a="chapters">${T('chapters')}</button>
+          <button data-a="settings">${T('settings')}</button>
+          <button data-a="about">${T('about')}</button>
         </nav>
       </div>
-      <div class="panel chapters hidden">${ACTS.map((a, i) => `<button data-ch="${i}"><b>Acto ${a.n}</b><span>${a.t}</span><small>${a.d}</small></button>`).join('')}</div>
+      <div class="panel chapters hidden">${ACTS.map((a, i) => `<button data-ch="${i}"><b>${T('act')} ${a.n}</b><span>${T(a.t)}</span><small>${T(a.d)}</small></button>`).join('')}</div>
       <div class="panel settings hidden">
-        <label>Calidad <select data-s="quality"><option value="low">Rendimiento</option><option value="medium">Equilibrada</option><option value="high">Cinemática</option></select></label>
-        <label>Volumen general <input type="range" min="0" max="1" step="0.01" data-s="master"/></label>
-        <label>Música <input type="range" min="0" max="1" step="0.01" data-s="music"/></label>
-        <label>Efectos <input type="range" min="0" max="1" step="0.01" data-s="sfx"/></label>
-        <label>${isTouch ? 'Sensibilidad táctil' : 'Sensibilidad del ratón'} <input type="range" min="0.3" max="2.5" step="0.05" data-s="sensitivity"/></label>
-        <p class="note">Usa auriculares. La calidad recarga la experiencia.</p>
+        <label>${T('quality')} <select data-s="quality"><option value="low" data-t="q_low">${t('q_low')}</option><option value="medium" data-t="q_med">${t('q_med')}</option><option value="high" data-t="q_high">${t('q_high')}</option></select></label>
+        <label>${T('master')} <input type="range" min="0" max="1" step="0.01" data-s="master"/></label>
+        <label>${T('voices')} <input type="range" min="0" max="1" step="0.01" data-s="voice"/></label>
+        <label>${T('music')} <input type="range" min="0" max="1" step="0.01" data-s="music"/></label>
+        <label>${T('sfx')} <input type="range" min="0" max="1" step="0.01" data-s="sfx"/></label>
+        <label>${T(isTouch ? 'sens_touch' : 'sens_mouse')} <input type="range" min="0.3" max="2.5" step="0.05" data-s="sensitivity"/></label>
+        <p class="note">${T('note')}</p>
       </div>
       <div class="panel about hidden">
-        <p>Antu y Nairoby suben al santuario de Lake Williams. Cuatro actos: el bosque que respira, el duelo de miradas con un grizzly a cinco metros, el laberinto de sombras con diez osos, y el umbral entre el ocaso y la noche.</p>
-        <p class="keys">${KEYS}</p>
+        <p>${T('about_p')}</p>
+        <p class="keys">${T(isTouch ? 'keys_touch' : 'keys_desk')}</p>
       </div>
-      <footer class="lobby-foot">${isTouch ? 'Auriculares recomendados · Juega con el teléfono en horizontal' : 'Auriculares recomendados · Pantalla completa <b>F11</b>'}</footer>
+      <footer class="lobby-foot">${T(isTouch ? 'foot_touch' : 'foot_desk')}</footer>
     </div>`);
     this.hud = h(`<div class="hud hidden">
       <div class="objective"></div>
@@ -93,24 +97,29 @@ export class UI {
       <div class="reticle hidden"><i></i><b></b></div>
       <div class="duel hidden">
         <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" class="trk"/><circle cx="50" cy="50" r="46" class="bal"/><circle cx="50" cy="50" r="40" class="str"/></svg>
-        <div class="duel-lbl">Equilibrio</div>
+        <div class="duel-lbl">${T('balance')}</div>
       </div>
       <div class="compass hidden"><div class="cmp-strip"></div><i></i></div>
-      <div class="counter hidden"><span class="cnt">0</span><small>/10</small><em>osos revelados</em><div class="charge"><i></i></div></div>
+      <div class="threat hidden"><em>${T('tension')}</em><div class="bar"><i></i></div></div>
+      <button class="menu-btn">${T('menu')}</button>
     </div>`);
     this.card = h(`<div class="actcard"><div class="n"></div><div class="t"></div><div class="d"></div></div>`);
     this.sub = h(`<div class="subtitle"></div>`);
     this.overlay = h(`<div class="overlay hidden"></div>`);
-    this.lockEl = h(`<div class="lock hidden"><div>${isTouch ? 'Toca la pantalla para continuar' : 'Haz clic para tomar el control'}</div><small>${isTouch ? 'Joystick · Deslizar para mirar' : 'WASD · Ratón · Shift'}</small></div>`);
-    this.skipEl = h(`<div class="skip hidden">Enter · saltar</div>`);
-    const rotate = h(`<div class="rotate"><svg viewBox="0 0 60 60"><rect x="18" y="8" width="24" height="44" rx="4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><div>Gira tu teléfono</div><small>La experiencia se juega en horizontal</small></div>`);
+    this.lockEl = h(`<div class="lock hidden"><div>${T(isTouch ? 'lock_touch' : 'lock_desk')}</div><small>${T(isTouch ? 'lock_touch2' : 'lock_desk2')}</small></div>`);
+    this.skipEl = h(`<div class="skip hidden">${T('skip')}</div>`);
+    const rotate = h(`<div class="rotate"><svg viewBox="0 0 60 60"><rect x="18" y="8" width="24" height="44" rx="4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><div>${T('rotate')}</div><small>${T('rotate2')}</small></div>`);
     root.append(this.loader, this.lobby, this.hud, this.card, this.sub, this.overlay, this.lockEl, this.skipEl, rotate);
     this.obj = this.hud.querySelector('.objective')!;
     this.hintEl = this.hud.querySelector('.hint')!;
     this.reticleEl = this.hud.querySelector('.reticle')!;
     this.duel = this.hud.querySelector('.duel')!;
     this.compassEl = this.hud.querySelector('.compass')!;
-    this.counterEl = this.hud.querySelector('.counter')!;
+    this.threatEl = this.hud.querySelector('.threat')!;
+    this.menuBtn = this.hud.querySelector('.menu-btn')!;
+    this.menuBtn.onclick = (e) => { e.stopPropagation(); this.onMenu?.(); };
+    this.lobby.querySelectorAll<HTMLButtonElement>('[data-lang]').forEach((b) => (b.onclick = () => { setLang(b.dataset.lang as 'es' | 'en'); this.markLang(); }));
+    this.markLang();
     const strip = this.compassEl.querySelector('.cmp-strip')!;
     const marks = ['N', '·', 'NE', '·', 'E', '·', 'SE', '·', 'S', '·', 'SO', '·', 'O', '·', 'NO', '·'];
     strip.innerHTML = [...marks, ...marks, ...marks].map((m) => `<span>${m}</span>`).join('');
@@ -129,6 +138,10 @@ export class UI {
       });
     });
   }
+  private markLang() {
+    this.lobby.querySelectorAll<HTMLButtonElement>('[data-lang]').forEach((b) => b.classList.toggle('on', b.dataset.lang === lang));
+    applyLang(this.root);
+  }
   progress(p: number, txt?: string) {
     (this.loader.querySelector('.loader-bar i') as HTMLElement).style.transform = `scaleX(${p})`;
     if (txt) this.loader.querySelector('.loader-txt')!.textContent = txt;
@@ -137,6 +150,8 @@ export class UI {
     this.loader.classList.add('gone');
     setTimeout(() => this.loader.remove(), 1600);
   }
+  get creditsOpen() { return !!this.root.querySelector('.credits'); }
+  closeCredits() { this.root.querySelector('.credits')?.remove(); }
   showLobby(h: { start: () => void; chapter: (i: number) => void }) {
     this.lobby.classList.remove('hidden', 'out');
     document.body.classList.remove('playing');
@@ -160,9 +175,9 @@ export class UI {
   }
   actCard(i: number) {
     const a = ACTS[i];
-    this.card.querySelector('.n')!.textContent = `Acto ${a.n}`;
-    this.card.querySelector('.t')!.textContent = a.t;
-    this.card.querySelector('.d')!.textContent = a.d;
+    this.card.querySelector('.n')!.textContent = `${t('act')} ${a.n}`;
+    this.card.querySelector('.t')!.textContent = t(a.t);
+    this.card.querySelector('.d')!.textContent = t(a.d);
     this.card.classList.remove('show');
     void this.card.offsetWidth;
     this.card.classList.add('show');
@@ -200,10 +215,13 @@ export class UI {
     const deg = ((((-heading * 180) / Math.PI) % 360) + 360) % 360;
     (this.compassEl.querySelector('.cmp-strip') as HTMLElement).style.transform = `translateX(${-(deg / 360) * 16 * 40 - 16 * 40 + 120}px)`;
   }
-  counter(v: boolean, n = 0, charge = 1) {
-    this.counterEl.classList.toggle('hidden', !v);
-    this.counterEl.querySelector('.cnt')!.textContent = String(n);
-    (this.counterEl.querySelector('.charge i') as HTMLElement).style.transform = `scaleX(${charge})`;
+  threat(v: boolean, k = 0) {
+    this.threatEl.classList.toggle('hidden', !v);
+    (this.threatEl.querySelector('.bar i') as HTMLElement).style.transform = `scaleX(${k})`;
+    this.threatEl.classList.toggle('hot', k > 0.6);
+  }
+  menuButton(v: boolean) {
+    this.menuBtn.classList.toggle('hidden', !v);
   }
   lock(v: boolean) {
     this.lockEl.classList.toggle('hidden', !v);
@@ -212,37 +230,37 @@ export class UI {
     this.skipEl.classList.toggle('hidden', !v || isTouch);
   }
   gameOver(title: string, text: string, retry: () => void, menu: () => void) {
-    this.overlay.innerHTML = `<div class="ov-box"><div class="eyebrow">Fin del duelo</div><h2>${title}</h2><p>${text}</p>
-      <div class="ov-btns"><button class="primary" data-r>Intentar de nuevo</button><button data-m>Volver al inicio</button></div></div>`;
+    this.overlay.innerHTML = `<div class="ov-box"><div class="eyebrow">${t('over')}</div><h2>${title}</h2><p>${text}</p>
+      <div class="ov-btns"><button class="primary" data-r>${t('retry')}</button><button data-m>${t('to_menu')}</button></div></div>`;
     this.overlay.classList.remove('hidden');
     this.overlay.querySelector<HTMLButtonElement>('[data-r]')!.onclick = () => { this.overlay.classList.add('hidden'); retry(); };
     this.overlay.querySelector<HTMLButtonElement>('[data-m]')!.onclick = () => { this.overlay.classList.add('hidden'); menu(); };
   }
   pause(show: boolean, resume: () => void, menu: () => void) {
     if (!show) { this.overlay.classList.add('hidden'); return; }
-    this.overlay.innerHTML = `<div class="ov-box"><div class="eyebrow">Pausa</div><h2>La montaña espera</h2>
-      <p class="keys">${KEYS}</p>
-      <div class="ov-btns"><button class="primary" data-r>Continuar</button><button data-m>Volver al inicio</button></div></div>`;
+    this.overlay.innerHTML = `<div class="ov-box"><div class="eyebrow">${t('pause')}</div><h2>${t('pause_h')}</h2>
+      <p class="keys">${keys()}</p>
+      <div class="ov-btns"><button class="primary" data-r>${t('resume')}</button><button data-m>${t('to_menu')}</button></div></div>`;
     this.overlay.classList.remove('hidden');
     this.overlay.querySelector<HTMLButtonElement>('[data-r]')!.onclick = () => { this.overlay.classList.add('hidden'); resume(); };
     this.overlay.querySelector<HTMLButtonElement>('[data-m]')!.onclick = () => { this.overlay.classList.add('hidden'); menu(); };
   }
   credits(onDone: () => void) {
     const el = h(`<div class="credits"><div class="roll">
-      <div class="eyebrow">Fin</div>
-      <h2>Los Osos de la Sierra<br/>de la Sangre de Cristo</h2>
-      <p class="it">“Los osos no nos atacaron. Nos miraron, y nos dejaron pasar.”</p>
+      <div class="eyebrow">${t('end')}</div>
+      <h2>${t('title')}<br/>${t('title2')}</h2>
+      <p class="it">${t('quote')}</p>
       <dl>
-        <dt>Una historia de</dt><dd>Antu &amp; Nairoby</dd>
-        <dt>Lugar</dt><dd>Lake Williams · Taos Ski Valley · Nuevo México</dd>
-        <dt>Protagonistas</dt><dd>Antu · Nairoby</dd>
-        <dt>Y</dt><dd>El grizzly del lago · diez madres y cachorros</dd>
-        <dt>Mundo</dt><dd>Terreno procedural, agua reflectante, cielo dinámico</dd>
-        <dt>Animación</dt><dd>Rigs y máquinas de estado a medida</dd>
-        <dt>Sonido</dt><dd>Paisaje sonoro procedural en tiempo real</dd>
+        <dt>${t('c_story')}</dt><dd>Antu &amp; Nairoby</dd>
+        <dt>${t('c_cast')}</dt><dd>Antu · Nairoby</dd>
+        <dt>${t('c_and')}</dt><dd>${t('c_bears')}</dd>
+        <dt>${t('c_world')}</dt><dd>${t('c_world_d')}</dd>
+        <dt>${t('c_anim')}</dt><dd>${t('c_anim_d')}</dd>
+        <dt>${t('c_voice')}</dt><dd>${t('c_voice_d')}</dd>
+        <dt>${t('c_sound')}</dt><dd>${t('c_sound_d')}</dd>
       </dl>
-      <p class="it">Respeta la fauna. Mantén la distancia. No corras.</p>
-      <button class="primary" data-x>Volver al inicio</button>
+      <p class="it">${t('respect')}</p>
+      <button class="primary" data-x>${t('to_menu')}</button>
     </div></div>`);
     this.root.append(el);
     requestAnimationFrame(() => el.classList.add('show'));
@@ -253,7 +271,7 @@ export class UI {
     if (this.hintTimer > 0) { this.hintTimer -= dt; if (this.hintTimer <= 0) this.hintEl.classList.remove('show'); }
   }
   clearHUD() {
-    this.objective(null); this.hint(null); this.reticle(false); this.duelHUD(false); this.compass(false); this.counter(false);
+    this.objective(null); this.hint(null); this.reticle(false); this.duelHUD(false); this.compass(false); this.threat(false);
     this.sub.classList.remove('show');
   }
 }

@@ -2,15 +2,16 @@ import * as THREE from 'three';
 import { fbm2, ridged2, smoothstep, clamp, GLSL_NOISE } from '../core/noise';
 
 export const WORLD = 420;
-export const LAKE = { x: 0, z: -10, r: 46 };
+export const LAKE = { x: 0, z: -10, r: 64 };
+/** Dark, tangled corner of the lake (dead wood, black water) where Antu falls. */
+export const DARK = { x: -60, z: 8, r: 18 };
 export const WATER_Y = 0;
 
-// Trail: south start -> lake shore -> west slope (fall) -> north forest -> back south-east
+// Only the start of a trail: the friends leave it right away
 export const TRAIL_POINTS = [
-  new THREE.Vector3(10, 0, 150),
-  new THREE.Vector3(4, 0, 110),
-  new THREE.Vector3(-6, 0, 78),
-  new THREE.Vector3(-18, 0, 54),
+  new THREE.Vector3(6, 0, 84),
+  new THREE.Vector3(4, 0, 72),
+  new THREE.Vector3(1, 0, 60),
 ];
 const trailCurve = new THREE.CatmullRomCurve3(TRAIL_POINTS);
 const trailSamples = trailCurve.getSpacedPoints(80);
@@ -39,8 +40,8 @@ export function talusMask(x: number, z: number) {
   const n = fbm2(x * 0.012 + 5, z * 0.012 - 3, 3);
   const east = smoothstep(10, 70, x + n * 40) * smoothstep(80, -40, z);
   const north = smoothstep(-40, -90, z + n * 30) * smoothstep(-60, 40, x);
-  const shore = smoothstep(1.35, 1.0, lakeDist(x, z)) * smoothstep(0.92, 1.02, lakeDist(x, z));
-  return clamp(Math.max(east, north * 0.85, shore * 0.9) + n * 0.25, 0, 1);
+  const shore = smoothstep(1.3, 1.0, lakeDist(x, z)) * smoothstep(0.92, 1.02, lakeDist(x, z));
+  return clamp(Math.max(east, north * 0.85, shore) + n * 0.25, 0, 1);
 }
 
 export function heightAt(x: number, z: number): number {

@@ -6,6 +6,7 @@ import { createSky, createMountains } from './Sky';
 import { createForest, createGrass, windUniforms } from './Vegetation';
 import { createTalus, rockUniforms } from './Rocks';
 import { Petroglyphs } from './Petroglyphs';
+import { createTangle, STONE } from './Tangle';
 import { Colliders } from '../game/Collision';
 import { Motes } from '../fx/Particles';
 import { lerp, clamp } from '../core/noise';
@@ -35,6 +36,7 @@ export class World {
   sky: ReturnType<typeof createSky>;
   mountains: ReturnType<typeof createMountains>;
   petro: Petroglyphs;
+  tangle: ReturnType<typeof createTangle>;
   motes = new Motes();
   fog: THREE.FogExp2;
   tod = 0;
@@ -57,13 +59,13 @@ export class World {
     const grass = createGrass(q.grass);
     this.colliders.addAll(forest.trees.map((t) => ({ x: t.x, z: t.z, r: 0.35 })));
     this.colliders.addAll(talus.colliders);
-    const glyphPts = [0.16, 0.42, 0.68, 0.9].map((t, i) => {
-      const p = this.trail.getPointAt(t);
-      const tan = this.trail.getTangentAt(t);
-      const side = i % 2 ? 1 : -1;
-      const x = p.x + tan.z * 4.2 * side, z = p.z - tan.x * 4.2 * side;
-      return { x, z, face: Math.atan2(p.x - x, p.z - z) };
-    });
+    const trailP = this.trail.getPointAt(0.35), trailT = this.trail.getTangentAt(0.35);
+    const glyphPts = [
+      { x: STONE.x, z: STONE.z, face: Math.atan2(-70 - STONE.x, 13 - STONE.z) },
+      { x: trailP.x + trailT.z * 4.2, z: trailP.z - trailT.x * 4.2, face: Math.atan2(-trailT.z, trailT.x) },
+    ];
+    this.tangle = createTangle();
+    this.colliders.addAll(this.tangle.colliders);
     this.petro = new Petroglyphs(glyphPts);
     glyphPts.forEach((g) => this.colliders.add({ x: g.x, z: g.z, r: 1.4 }));
     this.sun.castShadow = true;
@@ -73,7 +75,7 @@ export class World {
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.04;
     this.group.add(this.terrain.mesh, this.water.water, this.sky.mesh, this.mountains.group,
-      forest.group, talus.group, grass, this.petro.group, this.sun, this.sun.target, this.hemi, this.motes.points);
+      forest.group, talus.group, grass, this.petro.group, this.tangle.group, this.sun, this.sun.target, this.hemi, this.motes.points);
     this.setTimeOfDay(0);
   }
   setTimeOfDay(t: number) {
