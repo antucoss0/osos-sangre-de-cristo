@@ -643,7 +643,7 @@ export class Game {
     this.bear.target.copy(p);
     const sp = speedOf(this.player.char);
     c.still = sp < 0.6 ? c.still + dt : 0;
-    this.bear.gap = c.still > 3 ? 1.2 : 6.5;
+    this.bear.gap = c.t > 8 && c.still > 4 ? 1.2 : 6.5;
     if (this.bear.fsm.is('Chase') && this.bear.position.distanceTo(p) < 2.6) {
       this.bear.fsm.go('Aggro');
       this.fail('f_caught_t', 'f_caught_d', 'Chase');
