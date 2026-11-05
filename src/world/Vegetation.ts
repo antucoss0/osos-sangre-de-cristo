@@ -1,4 +1,4 @@
-import { inClearing } from './Tangle';
+import { inClearing, STONE } from './Anchors';
 import * as THREE from 'three';
 import { mulberry32, GLSL_NOISE } from '../core/noise';
 import { heightAt, lakeDist, talusMask, trailDistance, slopeAt, WORLD } from './Terrain';
@@ -51,7 +51,7 @@ function barkTexture() {
 }
 
 // Build a spruce: trunk + whorls of drooping branch cards, merged into one geometry
-function spruceGeometry(seed: number) {
+function spruceGeometry(seed: number, minY = 0) {
   const r = mulberry32(seed);
   const H = 1;
   const parts: THREE.BufferGeometry[] = [];
@@ -68,6 +68,7 @@ function spruceGeometry(seed: number) {
   for (let w = 0; w < whorls; w++) {
     const t = w / whorls;
     const y = 0.12 + t * 0.86;
+    if (y < minY) continue;
     const len = (1 - t) * 0.26 + 0.035;
     const count = 7 + Math.floor((1 - t) * 4);
     for (let k = 0; k < count; k++) {
@@ -127,7 +128,11 @@ function windPatch(mat: THREE.Material, foliage: boolean) {
       .replace('#include <common>', `#include <common>
         uniform float uTime; uniform float uWind; uniform float uBreath; varying float vCamD; ${GLSL_NOISE}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-        vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+        mat4 iM = mat4(1.0);
+        #ifdef USE_INSTANCING
+          iM = instanceMatrix;
+        #endif
+        vec3 ip = (modelMatrix * iM)[3].xyz;
         float hh = clamp(transformed.y, 0.0, 1.0);
         float gust = snoise(ip.xz*0.02 + uTime*0.15)*0.5+0.5;
         float sw = sin(uTime*1.3 + ip.x*0.2 + ip.z*0.13) * (0.012 + gust*0.02) * uWind;
@@ -138,7 +143,7 @@ function windPatch(mat: THREE.Material, foliage: boolean) {
         float br = sin(uTime*0.9 + ip.x*0.05)*uBreath;
         transformed.xz *= 1.0 + br*0.06*(1.0-hh);
         transformed.y *= 1.0 + br*0.03;
-        vCamD = distance((modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz, cameraPosition);`);
+        vCamD = distance((modelMatrix * iM * vec4(transformed, 1.0)).xyz, cameraPosition);`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying float vCamD;')
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
@@ -151,17 +156,38 @@ export interface Forest {
   trees: { x: number; z: number; r: number }[];
 }
 
-export function createForest(density = 1): Forest {
-  const group = new THREE.Group();
-  const needle = needleTexture();
+let mats: { fmat: THREE.MeshStandardMaterial; tmat: THREE.MeshStandardMaterial; bark: THREE.Texture } | null = null;
+function forestMats() {
+  if (mats) return mats;
   const bark = barkTexture();
-  const variants = [spruceGeometry(11), spruceGeometry(23), spruceGeometry(41)];
-  const fmat = new THREE.MeshStandardMaterial({
-    map: needle, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.8, color: 0xd6e2bc,
-  });
+  const fmat = new THREE.MeshStandardMaterial({ map: needleTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.8, color: 0xd6e2bc });
   windPatch(fmat, true);
   const tmat = new THREE.MeshStandardMaterial({ map: bark, roughness: 0.95 });
   windPatch(tmat, false);
+  mats = { fmat, tmat, bark };
+  return mats;
+}
+let barkM: THREE.MeshStandardMaterial | null = null;
+export function barkMat() {
+  return (barkM ??= new THREE.MeshStandardMaterial({ map: forestMats().bark, roughness: 0.95, color: 0xb8a898 }));
+}
+/** A single, larger spruce built from the same geometry and materials as the forest. */
+export function heroSpruce(x: number, z: number, scale: number, minY = 0) {
+  const { fmat, tmat } = forestMats();
+  const v = spruceGeometry(57, minY);
+  const g = new THREE.Group();
+  const f = new THREE.Mesh(v.foliage, fmat), t = new THREE.Mesh(v.trunk, tmat);
+  f.castShadow = f.receiveShadow = t.castShadow = true;
+  g.add(f, t);
+  g.position.set(x, heightAt(x, z) - 0.3, z);
+  g.scale.set(scale * 0.6, scale, scale * 0.6);
+  return g;
+}
+
+export function createForest(density = 1): Forest {
+  const group = new THREE.Group();
+  const variants = [spruceGeometry(11), spruceGeometry(23), spruceGeometry(41)];
+  const { fmat, tmat } = forestMats();
   const r = mulberry32(99);
   const trees: { x: number; z: number; r: number }[] = [];
   const placements: THREE.Matrix4[][] = [[], [], []];
@@ -194,6 +220,19 @@ export function createForest(density = 1): Forest {
       new THREE.Vector3(scale * (0.32 + r() * 0.1), scale, scale * (0.32 + r() * 0.1)),
     );
     placements[Math.floor(r() * 3)].push(m);
+  }
+  for (let k = 0, added = 0; k < 4000 && added < 240 * density; k++) {
+    const a = r() * Math.PI * 2, d = 5 + Math.sqrt(r()) * 34;
+    const x = STONE.x + Math.sin(a) * d, z = STONE.z + Math.cos(a) * d;
+    if (lakeDist(x, z) < 1.12 || inClearing(x, z) || slopeAt(x, z) > 1.5) continue;
+    if (trees.some((t) => (t.x - x) ** 2 + (t.z - z) ** 2 < 3.2)) continue;
+    const scale = 12 + r() * 18;
+    trees.push({ x, z, r: scale * 0.02 + 0.2 });
+    placements[Math.floor(r() * 3)].push(new THREE.Matrix4().compose(
+      new THREE.Vector3(x, heightAt(x, z) - 0.3, z),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r() * Math.PI * 2, 0)),
+      new THREE.Vector3(scale * (0.34 + r() * 0.1), scale, scale * (0.34 + r() * 0.1))));
+    added++;
   }
   variants.forEach((v, i) => {
     const n = placements[i].length;
@@ -251,7 +290,11 @@ export function createGrass(count = 60000) {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>\nuniform float uTime; uniform float uWind; varying float vH; ${GLSL_NOISE}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-        vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+        mat4 iM = mat4(1.0);
+        #ifdef USE_INSTANCING
+          iM = instanceMatrix;
+        #endif
+        vec3 ip = (modelMatrix * iM)[3].xyz;
         float hh = transformed.y*2.0; vH = hh;
         float w = snoise(ip.xz*0.08 + uTime*0.35)*0.5+0.5;
         transformed.x += (sin(uTime*2.2 + ip.x*0.5)*0.06 + w*0.12)*hh*hh*uWind;

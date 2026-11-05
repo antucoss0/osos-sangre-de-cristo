@@ -30,6 +30,8 @@ export class Bear {
   auraLevel = 0;
   perched = false;
   gap = 6.5;
+  surging = 0;
+  private surgeT = 0;
   private leapFrom = new THREE.Vector3();
   private time = 0;
   constructor(gltf: GLTF, private colliders: Colliders | null, opts: { scale?: number; clone?: boolean; eye?: number; aura?: boolean } = {}) {
@@ -50,7 +52,7 @@ export class Bear {
       const am = new THREE.SpriteMaterial({ map: auraTex, color: 0x4fa8ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
       const sp = new THREE.Sprite(am);
       sp.scale.setScalar(3.2 * (opts.scale ?? 1.15));
-      const light = new THREE.PointLight(0x3d8cff, 0, 22, 1.6);
+      const light = new THREE.PointLight(0x3d8cff, 0, 9, 2);
       this.aura.add(sp, light);
       this.aura.userData = { mat: am, light };
       this.char.model.traverse((o) => {
@@ -128,11 +130,19 @@ export class Bear {
       Chase: {
         update(b, dt, t) {
           const d = b.char.position.distanceTo(b.target);
-          if (d > b.gap) steer(b.char, b.target, Math.min(4.6, 1.2 + (d - b.gap) * 0.55) * b.speedScale, dt, null, 0.8, 2.5);
+          b.surgeT += dt;
+          if (b.surgeT > 6 && d > b.gap + 2) { b.surgeT = Math.random() * 1.5; b.surging = 1.4; b.onEvent?.('roar', b); }
+          b.surging -= dt;
+          const boost = b.surging > 0 ? 1.55 : 1;
+          if (d > b.gap) steer(b.char, b.target, Math.min(4.6 * boost, 1.2 + (d - b.gap) * 0.55 * boost) * b.speedScale, dt, null, 0.8, 2.5);
           else { b.char.velocity.multiplyScalar(Math.exp(-4 * dt)); b.char.faceTowards(b.target.x, b.target.z, dt, 2); }
           bearLocomotion(b.char);
           if (Math.floor(t / 4) !== Math.floor((t - dt) / 4)) b.onEvent?.(d < 10 ? 'growl' : 'huff', b);
         },
+      },
+      Cling: {
+        enter(b) { b.char.root.visible = true; b.perched = true; b.char.velocity.set(0, 0, 0); b.char.play('Idle', { fade: 0.4, timeScale: 0.7 }); },
+        update(b, dt) { b.char.faceTowards(b.exit.x, b.exit.z, dt, 2); },
       },
       Lurk: {
         enter(b) { b.char.root.visible = true; b.char.play('Idle', { fade: 0.6 }); },
@@ -175,6 +185,7 @@ export class Bear {
     this.time += dt;
     this.fsm.update(dt);
     this.char.update(dt, !this.perched);
+    if (this.fsm.is('Cling')) this.char.root.rotation.set(-1.2, this.char.heading, 0, 'YXZ');
     if (this.aura) {
       const s = this.char.model.scale.x;
       this.aura.position.copy(this.char.position);
@@ -182,7 +193,7 @@ export class Bear {
       const vis = this.char.root.visible ? 1 : 0;
       const pulse = 0.82 + Math.sin(this.time * 1.7) * 0.12 + Math.sin(this.time * 4.3) * 0.05;
       (this.aura.userData.mat as THREE.SpriteMaterial).opacity = this.auraLevel * vis * pulse * 0.42;
-      (this.aura.userData.light as THREE.PointLight).intensity = this.auraLevel * vis * pulse * 60;
+      (this.aura.userData.light as THREE.PointLight).intensity = this.auraLevel * vis * pulse * 16;
     }
     const s = speedOf(this.char);
     if (s > 0.2 && this.char.root.visible) {

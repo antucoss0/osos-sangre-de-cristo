@@ -1,18 +1,9 @@
 import * as THREE from 'three';
 import { DARK, heightAt, lakeDist, WATER_Y } from './Terrain';
+import { WAKE, BEAR_TREE, inClearing } from './Anchors';
+import { heroSpruce, barkMat } from './Vegetation';
 
-/** Story anchors around the dark corner of the lake. */
-export const STONE = { x: -88, z: 27 };
-export const WAKE = { x: -67, z: 16 };
-export const BEAR_TREE = { x: -74, z: 0 };
-
-/** Keeps the sight line from the fall spot up to the bear's branch free of trees. */
-export function inClearing(x: number, z: number) {
-  const ax = WAKE.x, az = WAKE.z, bx = BEAR_TREE.x - ax, bz = BEAR_TREE.z - az;
-  const k = Math.max(0, Math.min(1, ((x - ax) * bx + (z - az) * bz) / (bx * bx + bz * bz)));
-  const d = Math.hypot(x - (ax + bx * k), z - (az + bz * k));
-  return d < 6 || Math.hypot(x - ax, z - az) < 9;
-}
+export { STONE, WAKE, BEAR_TREE, inClearing } from './Anchors';
 
 function rng(seed: number) {
   let s = seed;
@@ -41,7 +32,6 @@ export function createTangle() {
   group.add(dark);
   const bark = new THREE.MeshStandardMaterial({ color: 0x2b231c, roughness: 1 });
   const deadBark = new THREE.MeshStandardMaterial({ color: 0x4a443c, roughness: 0.95 });
-  const needles = new THREE.MeshStandardMaterial({ color: 0x0f1d15, roughness: 0.9, flatShading: true });
   // fallen logs, half in the water
   const logGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
   for (let i = 0; i < 22; i++) {
@@ -79,19 +69,21 @@ export function createTangle() {
   // the great tree
   const tx = BEAR_TREE.x, tz = BEAR_TREE.z, ty = heightAt(tx, tz);
   const toWake = Math.atan2(WAKE.x - tx, WAKE.z - tz);
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 1.5, 26, 14), bark);
-  trunk.position.set(tx, ty + 13, tz); trunk.castShadow = true;
-  group.add(trunk);
+  group.add(heroSpruce(tx, tz, 34, 0.34));
+  const bmat = barkMat();
   const branchLen = 4.2, branchY = 7.4;
-  const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.7, branchLen, 10), bark);
-  branch.position.set(tx + Math.sin(toWake) * branchLen * 0.5, ty + branchY, tz + Math.cos(toWake) * branchLen * 0.5);
-  branch.rotation.set(Math.PI / 2 - 0.08, toWake, 0, 'YXZ');
+  const branch = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.42, branchLen, 9), bmat);
+  branch.position.set(tx + Math.sin(toWake) * branchLen * 0.5, ty + branchY + 0.15, tz + Math.cos(toWake) * branchLen * 0.5);
+  branch.rotation.set(Math.PI / 2 - 0.12, toWake, 0, 'YXZ');
   branch.castShadow = true;
   group.add(branch);
-  for (let k = 0; k < 6; k++) {
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(5.6 - k * 0.7, 5, 9), needles);
-    cone.position.set(tx, ty + 16.5 + k * 2.2, tz); cone.rotation.y = k; cone.castShadow = true;
-    group.add(cone);
+  // bare dead stubs below the living crown, like old spruces
+  for (let k = 0; k < 9; k++) {
+    const len = 0.7 + r() * 1.6, a = r() * Math.PI * 2, y = 2.5 + r() * 9;
+    const st = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.1, len, 5), bmat);
+    st.position.set(tx + Math.sin(a) * len * 0.5, ty + y, tz + Math.cos(a) * len * 0.5);
+    st.rotation.set(Math.PI / 2 + 0.3, a, 0, 'YXZ');
+    group.add(st);
   }
   colliders.push({ x: tx, z: tz, r: 1.7 });
   const perch = new THREE.Vector3(tx + Math.sin(toWake) * 2.9, ty + branchY + 0.55, tz + Math.cos(toWake) * 2.9);

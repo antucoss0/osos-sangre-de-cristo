@@ -1,4 +1,4 @@
-import { WAKE, BEAR_TREE } from './Tangle';
+import { WAKE, BEAR_TREE } from './Anchors';
 import * as THREE from 'three';
 import { mulberry32, fbm2, GLSL_NOISE } from '../core/noise';
 import { heightAt, lakeDist, talusMask, normalAt } from './Terrain';

@@ -25,7 +25,7 @@ const S = {
   about: ['Sobre la experiencia', 'About'],
   act: ['Acto', 'Act'],
   a1t: ['Fuera del sendero', 'Off the Trail'],
-  a1d: ['El lago · un destello en la montaña', 'The lake · a glint on the mountain'],
+  a1d: ['Petroglifos bajo el agua · un destello en el bosque', 'Petroglyphs under the water · a glint in the forest'],
   a2t: ['El árbol', 'The Tree'],
   a2d: ['Un oso azul mira desde lo alto · no apartes la mirada', 'A blue bear watches from above · don\u2019t look away'],
   a3t: ['La huida', 'The Escape'],
@@ -42,8 +42,8 @@ const S = {
   sens_touch: ['Sensibilidad táctil', 'Touch sensitivity'],
   note: ['Usa auriculares. La calidad recarga la experiencia.', 'Use headphones. Changing quality reloads the experience.'],
   about_p: [
-    'Antu y Nairoby son mejores amigos. Dejan el sendero para encontrarse, rodean un lago de piedra y siguen un destello en la montaña. Lo que los espera arriba de un árbol los obligará a huir entre osos, mientras cae la noche.',
-    'Antu and Nairoby are best friends. They leave the trail to find themselves, circle a stone-bound lake and follow a glint up the mountain. What waits for them up in a tree will make them flee among bears as night falls.',
+    'Antu y Nairoby son mejores amigos. Dejan el sendero para encontrarse, descubren petroglifos bajo el agua, rodean el lago y siguen un destello hasta lo más tupido del bosque. Lo que los espera arriba de un árbol los obligará a huir entre osos, mientras cae la noche.',
+    'Antu and Nairoby are best friends. They leave the trail to find themselves, discover petroglyphs under the water, circle the lake and follow a glint into the thickest part of the forest. What waits for them up in a tree will make them flee among bears as night falls.',
   ],
   keys_desk: [
     '<b>WASD</b> mover · <b>Shift</b> correr · <b>C</b> agacharse · <b>Ratón</b> mirar · <b>E</b> tocar · <b>Espacio</b> parpadear · <b>Enter</b> saltar cinemática · <b>Esc</b> pausa',
@@ -79,6 +79,7 @@ const S = {
   cap2: ['Vinieron a la montaña a encontrarse.', 'They came to the mountain to find themselves.'],
   cap_bear: ['Algo los observa desde lo alto.', 'Something watches them from above.'],
   obj_lake: ['Sal del sendero y busca el lago', 'Leave the trail and find the lake'],
+  obj_around: ['Rodea el lago', 'Go around the lake'],
   obj_climb: ['Sube hacia el destello', 'Climb toward the glint'],
   hint_touch_desk: ['Pulsa E para tocar la piedra', 'Press E to touch the stone'],
   hint_touch_mob: ['Pulsa Tocar', 'Press Touch'],

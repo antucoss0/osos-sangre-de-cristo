@@ -6,6 +6,8 @@ import { StateMachine } from '../core/FSM';
 import { loadModels, type Models } from '../core/Assets';
 import { World } from '../world/World';
 import { heightAt, lakeDist } from '../world/Terrain';
+import { inClearing } from '../world/Anchors';
+import type { PackSpot } from './Pack';
 import { STONE, WAKE, BEAR_TREE } from '../world/Tangle';
 import { t, line, lineIds, lang, onLang, type LineId, type StrKey } from '../i18n';
 import { Director, ease, type Shot } from '../cinema/Director';
@@ -25,9 +27,12 @@ const G = (x: number, z: number, up = 0) => V(x, heightAt(x, z) + up, z);
 const START = { x: 6, z: 84 };
 const TRAIL_END = { x: 1, z: 60 };
 const CLIMB = { x: -76, z: 36 };
-const EXIT = { x: -44, z: 70 };
-const OUT = { x: -40, z: 92 };
-const PACK_SPOTS = [{ x: -83, z: 31 }, { x: -57, z: 33 }, { x: -75, z: 50 }, { x: -49, z: 52 }, { x: -58, z: 64 }, { x: -35, z: 60 }];
+const EXIT = { x: 2, z: 62 };
+const OUT = { x: 6, z: 86 };
+const PACK_PLAN: { x: number; z: number; tree?: boolean }[] = [
+  { x: -71, z: 36 }, { x: -60, z: 30, tree: true }, { x: -50, z: 50 }, { x: -47, z: 53 }, { x: -34, z: 44 },
+  { x: -38, z: 58, tree: true }, { x: -20, z: 60 }, { x: -16, z: 63 }, { x: -6, z: 50 }, { x: -26, z: 48, tree: true },
+];
 
 type FxKey = 'fade' | 'psy' | 'radial' | 'blink' | 'edge' | 'aberration' | 'desat' | 'flash' | 'warm' | 'vignette';
 
@@ -61,9 +66,9 @@ export class Game {
   flashLight = new THREE.PointLight(0xfff4e6, 0, 70, 1.2);
   beacon = new THREE.Group();
   beaconLight = new THREE.PointLight(0xcfe6ff, 0, 30, 1.5);
+  stoneLight = new THREE.PointLight(0xe4f0ff, 0, 20, 1.6);
   paused = false;
   touchUI: TouchControls | null = null;
-  private tmp = new THREE.Vector3();
   constructor() {
     const canvas = document.getElementById('gl') as HTMLCanvasElement;
     this.ui = new UI(document.getElementById('ui')!);
@@ -99,6 +104,8 @@ export class Game {
     this.player.onStep = (run) => this.audio.step(run);
     scene.add(this.player.char.root, this.nai.char.root, this.bear.char.root, this.bear.eyes, this.bear.aura!, this.breath.points, this.breath2.points, this.flashLight, this.beacon);
     this.buildBeacon();
+    this.stoneLight.position.copy(this.world.petro.items[0].center).add(V(0, 2, 0));
+    scene.add(this.stoneLight);
     this.ui.progress(0.97, t('load_light'));
     this.place(START, TRAIL_END);
     this.engine.renderer.compile(scene, this.engine.camera);
@@ -125,8 +132,8 @@ export class Game {
     g.fillRect(0, 0, 64, 256);
     void hg;
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.6 }));
-    sp.scale.set(1.2, 12, 1);
-    sp.position.y = 6;
+    sp.scale.set(1.8, 44, 1);
+    sp.position.y = 22;
     this.beacon.add(sp, this.beaconLight);
     this.beaconLight.position.y = 1.5;
     this.beacon.position.copy(G(STONE.x, STONE.z));
@@ -144,6 +151,11 @@ export class Game {
     else if (e === 'growl') this.audio.growl(d, 0.4 + b.agitation);
     else if (e === 'step') this.audio.bearStep(d);
     else if (e === 'sniff') this.audio.sniff();
+    if (e === 'roar' && b === this.bear && this.fsm.is('Chase')) {
+      this.fx.radial.v = 0.8; this.fx.radial.t = 0;
+      this.fx.aberration.v = 2.5;
+      this.engine.cinema.set('uHeart', 12);
+    }
   }
   setFx(k: FxKey, t: number, r?: number, immediate = false) {
     this.fx[k].t = t;
@@ -256,6 +268,8 @@ export class Game {
           g.bear.perched = false;
           g.bear.auraLevel = 0;
           g.beacon.visible = false;
+          g.world.petro.items[0].glow = 0.12;
+          g.player.char.mixer.timeScale = 1; g.nai.char.mixer.timeScale = 1;
           g.place(TRAIL_END, { x: 0, z: -10 });
           g.setTod(0.08);
           g.setFx('fade', 0, 0.6);
@@ -298,23 +312,39 @@ export class Game {
         },
       },
       Glint: { enter: (g: Game) => g.playGlint() },
+      Around: {
+        enter: (g: Game) => {
+          if (g.fsm.previous !== 'Glint') g.place({ x: -6, z: 46 }, CLIMB);
+          g.playable();
+          g.beacon.position.copy(G(STONE.x, STONE.z));
+          g.beacon.visible = true;
+          g.setTod(0.28, 1 / 150);
+          g.later(0.4, () => g.sayChain(['glint_a2', 'lake_n'], 0.6));
+        },
+        update: (g: Game) => {
+          const p = g.player.position;
+          const d = Math.hypot(p.x - CLIMB.x, p.z - CLIMB.z);
+          g.ui.objective(`${t('obj_around')} · ${Math.round(d)} m`);
+          if (d < 7) return 'Climb';
+        },
+      },
       Climb: {
         enter: (g: Game) => {
-          if (g.fsm.previous !== 'Glint') g.place(CLIMB, STONE);
-          g.playable();
+          if (g.fsm.previous !== 'Around') { g.place(CLIMB, STONE); g.playable(); g.setTod(0.3); }
           g.setFx('fade', 0, 1);
           g.beacon.position.copy(G(STONE.x, STONE.z));
           g.beacon.visible = true;
-          g.setTod(0.3, 1 / 120);
+          g.setTod(0.33, 1 / 120);
         },
         update: (g: Game) => {
           const p = g.player.position;
           const d = Math.hypot(p.x - STONE.x, p.z - STONE.z);
           g.ui.objective(`${t('obj_climb')} · ${Math.round(d)} m`);
-          const near = d < 3.4;
+          const near = d < 5.4;
           if (near && !g.nearStone) g.ui.hint(t(g.input.touch ? 'hint_touch_mob' : 'hint_touch_desk'), 6);
           g.nearStone = near;
-          if ((near && g.input.pressed('KeyE')) || d < 1.7) return 'Fall';
+          g.world.petro.items[0].glow = Math.max(g.world.petro.items[0].glow, near ? 0.35 : 0.12);
+          if ((near && g.input.pressed('KeyE')) || d < 3.7) return 'Fall';
         },
         exit: (g: Game) => { g.nearStone = false; g.ui.hint(null); },
       },
@@ -348,7 +378,7 @@ export class Game {
     };
   }
 
-  // ───────────────────────── Intro (~14 s)
+  // ───────────────────────── Intro (~20 s)
   playIntro() {
     this.ui.clearHUD();
     this.ui.menuButton(true);
@@ -363,24 +393,29 @@ export class Game {
     this.bear.fsm.go('Hidden');
     this.place(START, TRAIL_END);
     const end = G(TRAIL_END.x, TRAIL_END.z);
-    const pp = () => this.player.position;
+    const mid = () => this.player.position.clone().lerp(this.nai.char.position, 0.5);
     const shots: Shot[] = [
       {
-        dur: 6.5, pos: V(34, 64, 124), pos2: V(10, 46, 86), look: V(-10, 0, -10), look2: V(-40, 6, -20), fov: 40, fov2: 36, focus: 120, bokeh: 0.6,
-        onStart: () => {
-          this.setFx('fade', 0, 0.6);
-          this.ui.subtitle('', t('cap1'), 3);
-          this.later(3.2, () => this.ui.subtitle('', t('cap2'), 3.2));
-        },
+        dur: 6.5, pos: V(64, 30, 100), pos2: V(26, 17, 66), look: V(0, 6, -60), look2: V(-4, 12, -90), fov: 38, fov2: 34, focus: 110, bokeh: 1,
+        onStart: () => { this.setFx('fade', 0, 0.5); this.ui.subtitle('', t('cap1'), 3.4); },
       },
       {
-        dur: 7,
-        pos: () => this.tmp.copy(pp()).add(V(2.6, 1.5, -2.4)), pos2: () => V(pp().x + 1.6, pp().y + 1.7, pp().z - 3.4),
-        look: () => V(pp().x, pp().y + 1.4, pp().z), fov: 34, focus: () => this.engine.camera.position.distanceTo(pp()), range: 2, bokeh: 4,
+        dur: 5.5, pos: V(-30, 1.2, 30), pos2: V(-10, 0.9, 12), look: V(14, 5, -50), look2: V(18, 9, -60), fov: 30, focus: 70, bokeh: 2,
+        onStart: () => this.ui.subtitle('', t('cap2'), 3.6),
+      },
+      {
+        // 360° orbit around the two friends, with a slow roll
+        dur: 9,
+        pos: (k: number) => {
+          const c = mid(), a = 0.4 + k * Math.PI * 2, r = 4.4 - Math.sin(k * Math.PI) * 1.2;
+          return V(c.x + Math.sin(a) * r, c.y + 1.3 + Math.sin(k * Math.PI) * 1.4, c.z + Math.cos(a) * r);
+        },
+        look: () => mid().add(V(0, 1.35, 0)), fov: 36, fov2: 30, roll: -0.12, roll2: 0.12, ease: ease.inOut,
+        focus: () => this.engine.camera.position.distanceTo(mid()), range: 2, bokeh: 4,
         onStart: () => {
           this.player.walkTo(end, 1.5);
           this.nai.walkTo(end.clone().add(V(-1.2, 0, 1.4)), 1.5);
-          this.later(0.6, () => this.sayChain(['trail_n', 'trail_a']));
+          this.later(0.8, () => this.sayChain(['trail_n', 'trail_a']));
         },
       },
       this.gameCam(),
@@ -389,79 +424,118 @@ export class Game {
     this.director.play(shots, () => { this.ui.skip(false); this.fsm.go('Act1'); });
   }
 
-  // ───────────────────────── Glint (~13 s)
+  // ───────────────────────── Petroglyphs under the water + the glint (~19 s)
   playGlint() {
     this.ui.clearHUD();
     this.player.controllable = false;
     this.player.camMode = 'free';
     this.player.char.velocity.set(0, 0, 0);
     this.player.release();
-    const stone = G(STONE.x, STONE.z, 1.2);
+    const pp = this.player.position.clone();
+    const glyph = this.world.sunken.items.reduce((a, b) => (a.center.distanceTo(pp) < b.center.distanceTo(pp) ? a : b)).center.clone();
+    const toP = pp.clone().sub(glyph).setY(0).normalize();
+    const stone = G(STONE.x, STONE.z, 3);
     this.beacon.position.copy(G(STONE.x, STONE.z));
     this.beacon.visible = true;
-    const pp = this.player.position.clone();
     this.nai.fsm.go('Scripted');
-    this.nai.lookTarget = stone;
-    const np = () => this.nai.char.position;
+    this.nai.lookTarget = glyph;
     const shots: Shot[] = [
       {
-        dur: 4, pos: () => np().clone().add(V(0.9, 1.7, 1.6)), look: stone, fov: 30, focus: 90, bokeh: 2,
-        onStart: () => { this.say('glint_n'); this.player.char.faceTowards(stone.x, stone.z, 1, 50); },
+        dur: 4.2, pos: glyph.clone().addScaledVector(toP, -3.4).add(V(1.2, 4.6, 0)), pos2: glyph.clone().addScaledVector(toP, -2.4).add(V(0.5, 3.2, 0)),
+        look: glyph, fov: 36, fov2: 32, focus: () => this.engine.camera.position.distanceTo(glyph), range: 2, bokeh: 4, ease: ease.inOut,
+        onStart: () => { this.say('glyph_n'); this.player.char.faceTowards(glyph.x, glyph.z, 1, 50); this.audio.chime(); },
       },
       {
-        dur: 3.5, pos: pp.clone().add(V(0, 1.7, 0)), look: stone, fov: 12, fov2: 9, focus: pp.distanceTo(stone), range: 6, bokeh: 3,
-        onStart: () => { this.audio.chime(); this.setFx('flash', 0.35, 4, true); this.say('glint_a'); },
+        dur: 3.6, pos: glyph.clone().lerp(pp, 0.65).add(V(0, 0.9, 0)), look: pp.clone().add(V(0, 1.35, 0)), fov: 32,
+        focus: () => this.engine.camera.position.distanceTo(pp), range: 2, bokeh: 5,
+        onStart: () => this.say('glyph_a'),
       },
       {
-        dur: 4.6, pos: pp.clone().add(V(2.8, 1.5, 2.2)), pos2: pp.clone().add(V(2.2, 1.6, 3)), look: pp.clone().add(V(-0.4, 1.5, 0)), fov: 32,
+        dur: 3.8, pos: pp.clone().add(V(0, 1.7, 0)), look: stone, fov: 13, fov2: 9, focus: pp.distanceTo(stone), range: 8, bokeh: 3,
+        onStart: () => { this.nai.lookTarget = stone; this.player.char.faceTowards(stone.x, stone.z, 1, 50); this.audio.chime(); this.setFx('flash', 0.35, 4, true); this.say('glint_n'); },
+      },
+      {
+        dur: 7.2, pos: pp.clone().add(V(2.8, 1.5, 2.2)), pos2: pp.clone().add(V(2.0, 1.6, 3.1)), look: pp.clone().add(V(-0.4, 1.5, 0)), fov: 32,
         focus: () => this.engine.camera.position.distanceTo(pp), range: 2, bokeh: 4,
-        onStart: () => { this.nai.lookTarget = this.player.position; this.sayChain(['glint_n2', 'glint_a2']); },
+        onStart: () => { this.nai.lookTarget = this.player.position; this.sayChain(['glint_a', 'glint_n2']); },
       },
-      { dur: 1.2, pos: pp.clone().add(V(2.2, 1.6, 3)), look: stone, fov: 34, onStart: () => this.setFx('fade', 1, 3) },
+      this.gameCam(),
     ];
     this.ui.skip(true);
-    this.director.play(shots, () => {
-      this.ui.skip(false);
-      this.place(CLIMB, STONE);
-      this.fsm.go('Climb');
-    });
+    this.director.play(shots, () => { this.ui.skip(false); this.fsm.go('Around'); });
   }
 
-  // ───────────────────────── Fall (~12 s)
+  // ───────────────────────── The slip: the most cinematic moment (~18 s)
   playFall() {
     this.ui.clearHUD();
     this.ui.menuButton(true);
-    if (this.fsm.previous !== 'Climb') { this.place({ x: STONE.x + 2.2, z: STONE.z + 1.4 }, STONE); this.setTod(0.32); }
+    if (this.fsm.previous !== 'Climb') { this.place({ x: STONE.x + 3.2, z: STONE.z + 1.6 }, STONE); this.setTod(0.34); }
     this.player.controllable = false;
     this.player.camMode = 'free';
     this.player.char.velocity.set(0, 0, 0);
     this.player.release();
     this.beacon.visible = false;
-    const stone = G(STONE.x, STONE.z, 1);
+    const glyph = this.world.petro.items[0];
+    const stone = glyph.center.clone();
     const pp = this.player.position.clone();
     const wake = G(WAKE.x, WAKE.z);
-    const tumble = new THREE.CatmullRomCurve3([pp.clone().add(V(0, 1.5, 0)), V((pp.x + wake.x) / 2, (pp.y + wake.y) / 2 + 3, (pp.z + wake.z) / 2), wake.clone().add(V(0, 0.6, 0))]);
+    const slip = pp.clone().lerp(wake, 0.18);
+    slip.y = heightAt(slip.x, slip.z) + 0.3;
+    const path = new THREE.CatmullRomCurve3([pp.clone(), slip, V((slip.x + wake.x) / 2, (slip.y + wake.y) / 2 + 2.2, (slip.z + wake.z) / 2), wake.clone()]);
+    const body = (k: number) => this.player.char.position.copy(path.getPoint(clamp(k, 0, 1)));
+    const slow = (v: number) => { this.player.char.mixer.timeScale = v; this.nai.char.mixer.timeScale = v; };
+    const a0 = Math.atan2(pp.x - stone.x, pp.z - stone.z) + 1.2;
+    const pc = () => this.player.char.position;
     const shots: Shot[] = [
       {
-        dur: 2.4, pos: pp.clone().add(V(-1.6, 1.4, 1.4)), pos2: pp.clone().add(V(-1.2, 1.3, 1.0)), look: stone, fov: 30, fov2: 26, focus: 2.5, range: 1, bokeh: 6,
-        onStart: () => { this.player.char.faceTowards(stone.x, stone.z, 1, 50); this.player.aim(); this.say('stone_a'); this.audio.tension = 0.3; },
-        onUpdate: (k) => { if (k > 0.7) this.fx.flash.v = Math.max(this.fx.flash.v, (k - 0.7) * 5); },
+        dur: 2.8, pos: pp.clone().add(V(-1.6, 1.4, 1.4)), pos2: pp.clone().add(V(-1.1, 1.3, 1.0)), look: stone, fov: 30, fov2: 25,
+        focus: () => this.engine.camera.position.distanceTo(stone), range: 1.2, bokeh: 6,
+        onStart: () => { this.player.char.faceTowards(stone.x, stone.z, 1, 50); this.player.aim(); this.say('stone_a'); this.audio.tension = 0.3; this.audio.chime(); },
+        onUpdate: (k: number) => {
+          glyph.glow = 0.3 + k * 1.4;
+          this.stoneLight.intensity = 10 + k * 120;
+          if (k > 0.75) this.fx.flash.v = Math.max(this.fx.flash.v, (k - 0.75) * 5);
+        },
       },
       {
-        dur: 1.6, pos: pp.clone().add(V(-1.2, 1.3, 1.0)), look: stone, fov: 60, shake: 2,
-        onStart: () => { this.audio.sting(); this.audio.whoosh(1.6); this.setFx('aberration', 3, 3); },
-        onUpdate: () => { this.fx.flash.v = 1.8; },
+        dur: 1.4, pos: pp.clone().add(V(-1.1, 1.3, 1.0)), look: stone, fov: 60, shake: 2,
+        onStart: () => { this.audio.sting(); this.audio.whoosh(1.4); this.setFx('aberration', 3, 3); },
+        onUpdate: () => { this.fx.flash.v = 1.8; glyph.glow = 2; this.stoneLight.intensity = 200; },
       },
       {
-        dur: 2.2, pos: (k) => tumble.getPoint(k), look: (k) => tumble.getPoint(Math.min(1, k + 0.1)).add(V(0, -1, 0)), fov: 72, roll: 0, roll2: Math.PI * 2.6, ease: ease.in, shake: 2,
-        onStart: () => { this.player.scared(); this.say('fall_n'); this.setFx('radial', 1.2, 6); this.audio.heartRate = 140; },
-        onUpdate: (k) => { this.fx.flash.v = Math.max(this.fx.flash.v, 1.2 - k * 1.4); if (k > 0.7) this.setFx('fade', 1, 6); },
+        // slow motion: the foot slides, the camera circles him
+        dur: 3.6,
+        pos: (k: number) => { const c = pc(), a = a0 + k * Math.PI * 1.15; return V(c.x + Math.sin(a) * 3.2, c.y + 0.8 + k * 0.7, c.z + Math.cos(a) * 3.2); },
+        look: () => pc().clone().add(V(0, 1.1, 0)), fov: 40, fov2: 30, roll: 0.16, roll2: -0.1, ease: ease.inOut,
+        focus: () => this.engine.camera.position.distanceTo(pc()), range: 1.2, bokeh: 7,
+        onStart: () => {
+          slow(0.2); this.player.scared(); this.say('fall_n');
+          this.audio.heartRate = 150; this.audio.whoosh(3.4);
+          this.setFx('desat', 0.4, 2); this.setFx('aberration', 1.6, 2); this.setFx('radial', 0.35, 2);
+        },
+        onUpdate: (k: number) => {
+          body(k * 0.2);
+          this.player.char.root.rotation.x = -k * 0.9;
+          this.fx.flash.v = Math.max(this.fx.flash.v, 0.9 - k * 1.2);
+          glyph.glow = 2 - k;
+        },
+      },
+      {
+        // real speed: tumbling down the slope
+        dur: 2.0, pos: (k: number) => path.getPoint(0.2 + k * 0.8).add(V(0, 1.1, 0)), look: (k: number) => path.getPoint(Math.min(1, 0.3 + k * 0.8)).add(V(0, -0.6, 0)),
+        fov: 76, roll: 0, roll2: Math.PI * 2.6, ease: ease.in, shake: 2.5,
+        onStart: () => { slow(1); this.setFx('radial', 1.3, 6); this.setFx('desat', 0.1, 2); this.audio.whoosh(2); },
+        onUpdate: (k: number) => { body(0.2 + k * 0.8); this.player.char.root.rotation.x = k * 9; if (k > 0.8) this.setFx('fade', 1, 8); },
+      },
+      {
+        dur: 1.5, pos: wake.clone().add(V(9, 7, 11)), pos2: wake.clone().add(V(7.5, 5.5, 9)), look: wake.clone().add(V(0, 0.3, 0)), fov: 40, shake: 1.5,
+        onStart: () => { body(1); this.audio.impact(); this.setFx('fade', 0, 12, true); this.setFx('radial', 0, 4); },
+        onUpdate: (k: number) => { body(1); this.player.char.root.rotation.x = 1.4; if (k > 0.55) this.setFx('fade', 1, 6); },
       },
       {
         dur: 2.2, pos: wake.clone().add(V(0, 0.3, 0)), look: wake.clone().add(V(-4, 0.5, -3)), fov: 55,
         onStart: () => {
-          this.audio.impact();
-          this.setFx('radial', 0, 3); this.setFx('aberration', 0.8, 1);
+          this.setFx('aberration', 0.8, 1);
           this.place(WAKE, BEAR_TREE);
           this.player.release();
           this.nai.place(WAKE.x + 1.4, WAKE.z + 1.6, this.player.char.heading);
@@ -469,11 +543,12 @@ export class Game {
           this.nai.fsm.go('Crouch');
           this.setupTree();
           this.setTod(0.36);
+          glyph.glow = 0.5;
           this.audio.heartRate = 80; this.audio.tension = 0.4;
           this.setFx('fade', 0, 1.2);
           this.setFx('blink', 1, 30, true);
         },
-        onUpdate: (k) => { this.setFx('blink', k < 0.3 ? 1 - k * 2.4 : k < 0.45 ? 0.7 : Math.max(0, 1 - k * 1.2), 12); },
+        onUpdate: (k: number) => { this.setFx('blink', k < 0.3 ? 1 - k * 2.4 : k < 0.45 ? 0.7 : Math.max(0, 1 - k * 1.2), 12); },
       },
       {
         dur: 3.6, pos: () => this.overShoulder(0.6), pos2: () => this.overShoulder(1.5), look: wake.clone().add(V(-4, 1.5, -3)),
@@ -482,7 +557,7 @@ export class Game {
       },
     ];
     this.ui.skip(true);
-    this.director.play(shots, () => { this.ui.skip(false); this.fsm.go('Duel'); });
+    this.director.play(shots, () => { this.ui.skip(false); slow(1); this.fsm.go('Duel'); });
   }
 
   // ───────────────────────── Duel (~10 s)
@@ -497,6 +572,7 @@ export class Game {
       this.setTod(0.36);
     }
     this.setupTree();
+    this.player.char.mixer.timeScale = 1; this.nai.char.mixer.timeScale = 1;
     this.player.release();
     this.player.char.play('Idle');
     this.player.controllable = false;
@@ -628,7 +704,7 @@ export class Game {
     this.world.setBreath(1);
     this.bear.gap = 6.5;
     if (!this.bear.fsm.is('Leap', 'Land', 'Chase')) this.bear.fsm.go('Chase');
-    this.pack.start(PACK_SPOTS, this.player.position);
+    this.pack.start(this.packSpots(), this.player.position);
     this.beacon.position.copy(G(EXIT.x, EXIT.z));
     this.beacon.visible = true;
     this.chase = { threat: 0, still: 0, metPack: false, t: 0 };
@@ -679,8 +755,23 @@ export class Game {
     this.ui.objective(`${t('obj_escape')} · ${Math.round(de)} m`);
     this.setFx('edge', c.threat * 0.8, 3);
     this.audio.tension = 0.45 + c.threat * 0.55;
-    this.audio.heartRate = 85 + c.threat * 70;
+    this.audio.heartRate = 85 + c.threat * 70 + Math.max(0, 14 - this.bear.position.distanceTo(p)) * 4;
     if (de < 5) return 'Finale';
+  }
+
+  private packSpots(): PackSpot[] {
+    return PACK_PLAN.map((s) => {
+      if (!s.tree) return { x: s.x, z: s.z };
+      let best: { x: number; z: number } | null = null, bd = 12;
+      for (const tr of this.world.trees) {
+        const d = Math.hypot(tr.x - s.x, tr.z - s.z);
+        if (d < bd && !inClearing(tr.x, tr.z)) { bd = d; best = tr; }
+      }
+      if (!best) return { x: s.x, z: s.z };
+      const dx = EXIT.x - best.x, dz = EXIT.z - best.z, l = Math.hypot(dx, dz) || 1;
+      const x = best.x + (dx / l) * 0.55, z = best.z + (dz / l) * 0.55;
+      return { x, z, y: heightAt(best.x, best.z) + 2.6 + (Math.abs(s.x) % 3) * 0.6, trunk: best };
+    });
   }
 
   // ───────────────────────── Finale (~12 s)
@@ -696,7 +787,7 @@ export class Game {
     const out = G(OUT.x, OUT.z);
     this.bear.exit.copy(G(BEAR_TREE.x, BEAR_TREE.z));
     if (this.bear.char.root.visible) this.bear.fsm.go('Accept');
-    for (const b of this.pack.watching) { b.exit.set(b.position.x * 1.6, 0, b.position.z - 40); b.fsm.go('Leave'); }
+    for (const b of this.pack.bears) if (b.fsm.is('Lurk')) { b.exit.set(b.position.x * 1.4, 0, b.position.z - 40); b.fsm.go('Leave'); }
     this.audio.tension = 0; this.audio.heartRate = 0;
     this.setFx('edge', 0, 1); this.setFx('desat', 0.05, 1);
     const shots: Shot[] = [
@@ -759,7 +850,7 @@ export class Game {
     this.director.update(dt, this.time);
     if (!this.director.playing && this.player.camMode === 'third') {
       const cam = this.engine.camera;
-      const f = this.engine.baseFov + Math.sin(this.time * 0.8) * this.fx.psy.v * 3.5;
+      const f = this.engine.baseFov + Math.sin(this.time * 0.8) * this.fx.psy.v * 3.5 + (this.fsm.is('Chase') ? clamp(speedOf(this.player.char) - 2, 0, 2.5) * 3 : 0);
       cam.fov += (f - cam.fov) * (1 - Math.exp(-3 * dt));
       cam.updateProjectionMatrix();
       this.engine.setFocus(cam.position.distanceTo(this.player.position) + 0.5, 6, 1.6);
@@ -783,6 +874,7 @@ export class Game {
     this.flashLight.position.copy(this.engine.camera.position);
     this.flashLight.intensity *= Math.exp(-9 * dt);
     this.beaconLight.intensity = this.beacon.visible ? 40 + Math.sin(this.time * 2) * 6 : 0;
+    this.stoneLight.intensity *= Math.exp(-0.5 * dt);
     this.world.setPsy(this.fx.psy.v);
     this.world.update(dt, this.time, this.engine.camera, this.player.position);
     // post fx

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../core/noise';
-import { heightAt, normalAt } from './Terrain';
+import { heightAt, normalAt, WATER_Y } from './Terrain';
 import { rockMaterial } from './Rocks';
 
 type Draw = (g: CanvasRenderingContext2D, s: number) => void;
@@ -91,7 +91,10 @@ export class Petroglyphs {
   group = new THREE.Group();
   items: Glyph[] = [];
   private ray = new THREE.Vector3();
-  constructor(points: { x: number; z: number; face: number }[]) {
+  private manual: boolean;
+  constructor(points: { x: number; z: number; face: number }[], opts: { scale?: number; manual?: boolean } = {}) {
+    const S = opts.scale ?? 1;
+    this.manual = !!opts.manual;
     const rockMat = rockMaterial();
     points.forEach((p, i) => {
       const geo = new THREE.BoxGeometry(2.6, 2.0, 1.2, 6, 6, 3);
@@ -105,7 +108,8 @@ export class Petroglyphs {
       geo.computeVertexNormals();
       const rock = new THREE.Mesh(geo, rockMat);
       const h = heightAt(p.x, p.z);
-      rock.position.set(p.x, h + 0.75, p.z);
+      rock.position.set(p.x, h + 0.75 * S, p.z);
+      rock.scale.setScalar(S);
       rock.rotation.y = p.face;
       const n = normalAt(p.x, p.z);
       rock.rotation.x = -n.z * 0.3;
@@ -131,7 +135,7 @@ export class Petroglyphs {
       face.position.set(0, 0.05, 0.62);
       rock.add(face);
       this.group.add(rock);
-      this.items.push({ mesh: rock, face, center: new THREE.Vector3(p.x, h + 0.8, p.z), glow: 0, charge: 0, awakened: false, mat });
+      this.items.push({ mesh: rock, face, center: new THREE.Vector3(p.x, h + 0.8 * S, p.z), glow: 0, charge: 0, awakened: false, mat });
     });
   }
   /** returns index of glyph that awakened this frame or -1 */
@@ -140,6 +144,7 @@ export class Petroglyphs {
     camera.getWorldDirection(this.ray);
     this.items.forEach((g, i) => {
       g.mat.uniforms.uTime.value = time;
+      if (this.manual) { g.mat.uniforms.uGlow.value = g.glow; return; }
       const toG = g.center.clone().sub(camera.position);
       const dist = playerPos.distanceTo(g.center);
       const ang = this.ray.angleTo(toG.normalize());
@@ -153,5 +158,52 @@ export class Petroglyphs {
       g.mat.uniforms.uGlow.value = g.glow;
     });
     return woke;
+  }
+}
+
+/** Petroglyph slabs resting just under the lake surface: glowing carvings seen through the water. */
+export class SunkenGlyphs {
+  group = new THREE.Group();
+  items: { center: THREE.Vector3; mat: THREE.ShaderMaterial; glow: number }[] = [];
+  private ray = new THREE.Vector3();
+  constructor(points: { x: number; z: number; rot: number }[]) {
+    points.forEach((p, i) => {
+      const slab = new THREE.Mesh(new THREE.CircleGeometry(1.9, 11), new THREE.MeshBasicMaterial({ color: 0x040705, transparent: true, opacity: 0.6, depthWrite: false }));
+      slab.rotation.set(-Math.PI / 2, 0, p.rot);
+      slab.scale.set(1.3, 0.95, 1);
+      slab.position.set(p.x, WATER_Y + 0.02, p.z);
+      slab.renderOrder = 2;
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+        uniforms: { uMap: { value: glyphTexture(i % 4) }, uGlow: { value: 0 }, uTime: { value: 0 } },
+        vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+        fragmentShader: `uniform sampler2D uMap; uniform float uGlow; uniform float uTime; varying vec2 vUv;
+          void main(){
+            vec2 w = vec2(sin(vUv.y*17.0+uTime*1.3), cos(vUv.x*14.0+uTime*1.1))*0.007;
+            float m = texture2D(uMap, vUv+w).r;
+            float halo = texture2D(uMap, vUv+w*3.0+vec2(0.012)).r;
+            float edge = smoothstep(0.56, 0.3, length(vUv-0.5));
+            vec3 c = mix(vec3(0.95,0.62,0.32), vec3(0.45,0.9,1.0), 0.5+0.5*sin(uTime*0.6+vUv.x*3.0));
+            gl_FragColor = vec4(c*(m*1.9+halo*0.7)*(0.1+uGlow*1.2)*edge, 1.0);
+          }`,
+      });
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 2.1), mat);
+      face.rotation.set(-Math.PI / 2, 0, p.rot);
+      face.position.set(p.x, WATER_Y + 0.04, p.z);
+      face.renderOrder = 3;
+      this.group.add(slab, face);
+      this.items.push({ center: new THREE.Vector3(p.x, WATER_Y, p.z), mat, glow: 0 });
+    });
+  }
+  update(camera: THREE.Camera, dt: number, time: number, playerPos: THREE.Vector3) {
+    camera.getWorldDirection(this.ray);
+    for (const g of this.items) {
+      const dist = playerPos.distanceTo(g.center);
+      const ang = this.ray.angleTo(g.center.clone().sub(camera.position).normalize());
+      const target = dist < 24 && ang < 0.5 ? 1 : dist < 34 ? 0.35 : 0.08;
+      g.glow += (target - g.glow) * (1 - Math.exp(-1.5 * dt));
+      g.mat.uniforms.uGlow.value = g.glow;
+      g.mat.uniforms.uTime.value = time;
+    }
   }
 }

@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import type { Quality } from '../core/Engine';
-import { createTerrain, TRAIL_POINTS, heightAt, LAKE } from './Terrain';
+import { createTerrain, TRAIL_POINTS, heightAt, LAKE, lakeDist } from './Terrain';
 import { createWater } from './Water';
 import { createSky, createMountains } from './Sky';
 import { createForest, createGrass, windUniforms } from './Vegetation';
 import { createTalus, rockUniforms } from './Rocks';
-import { Petroglyphs } from './Petroglyphs';
+import { Petroglyphs, SunkenGlyphs } from './Petroglyphs';
 import { createTangle, STONE } from './Tangle';
 import { Colliders } from '../game/Collision';
 import { Motes } from '../fx/Particles';
@@ -26,6 +26,16 @@ const KEYS: TodKey[] = [
   { sunDir: new THREE.Vector3(0.3, 0.55, 0.35), sunColor: 0x9fb4e6, sunI: 0.85, hemiSky: 0x34466e, hemiGround: 0x0b0d12, hemiI: 0.6, fog: 0x0c121c, fogD: 0.003, zenith: 0x01030a, horizon: 0x0f1a2c, cloud: 0.18, night: 1, exposure: 1.4 },
 ];
 
+/** Point on the ray from the lake centre towards (x, z) at normalised lake distance `ld`. */
+function lakePoint(x: number, z: number, ld: number) {
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 30; i++) {
+    const m = (lo + hi) / 2;
+    if (lakeDist(LAKE.x + (x - LAKE.x) * m, LAKE.z + (z - LAKE.z) * m) < ld) lo = m; else hi = m;
+  }
+  return { x: LAKE.x + (x - LAKE.x) * lo, z: LAKE.z + (z - LAKE.z) * lo };
+}
+
 export class World {
   group = new THREE.Group();
   sun = new THREE.DirectionalLight(0xffffff, 2);
@@ -37,6 +47,8 @@ export class World {
   mountains: ReturnType<typeof createMountains>;
   petro: Petroglyphs;
   tangle: ReturnType<typeof createTangle>;
+  sunken: SunkenGlyphs;
+  trees: { x: number; z: number; r: number }[] = [];
   motes = new Motes();
   fog: THREE.FogExp2;
   tod = 0;
@@ -59,15 +71,13 @@ export class World {
     const grass = createGrass(q.grass);
     this.colliders.addAll(forest.trees.map((t) => ({ x: t.x, z: t.z, r: 0.35 })));
     this.colliders.addAll(talus.colliders);
-    const trailP = this.trail.getPointAt(0.35), trailT = this.trail.getTangentAt(0.35);
-    const glyphPts = [
-      { x: STONE.x, z: STONE.z, face: Math.atan2(-70 - STONE.x, 13 - STONE.z) },
-      { x: trailP.x + trailT.z * 4.2, z: trailP.z - trailT.x * 4.2, face: Math.atan2(-trailT.z, trailT.x) },
-    ];
+    this.trees = forest.trees;
+    const glyphPts = [{ x: STONE.x, z: STONE.z, face: Math.atan2(-70 - STONE.x, 13 - STONE.z) }];
+    this.sunken = new SunkenGlyphs([[-16, 46, 0.82], [-3, 48, 0.86], [10, 47, 0.83], [22, 42, 0.88]].map(([x, z, ld], i) => ({ ...lakePoint(x, z, ld), rot: i * 1.3 })));
     this.tangle = createTangle();
     this.colliders.addAll(this.tangle.colliders);
-    this.petro = new Petroglyphs(glyphPts);
-    glyphPts.forEach((g) => this.colliders.add({ x: g.x, z: g.z, r: 1.4 }));
+    this.petro = new Petroglyphs(glyphPts, { scale: 2.2, manual: true });
+    glyphPts.forEach((g) => this.colliders.add({ x: g.x, z: g.z, r: 2.6 }));
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(q.shadow, q.shadow);
     const sc = this.sun.shadow.camera;
@@ -75,7 +85,7 @@ export class World {
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.04;
     this.group.add(this.terrain.mesh, this.water.water, this.sky.mesh, this.mountains.group,
-      forest.group, talus.group, grass, this.petro.group, this.tangle.group, this.sun, this.sun.target, this.hemi, this.motes.points);
+      forest.group, talus.group, grass, this.petro.group, this.sunken.group, this.tangle.group, this.sun, this.sun.target, this.hemi, this.motes.points);
     this.setTimeOfDay(0);
   }
   setTimeOfDay(t: number) {
@@ -129,6 +139,8 @@ export class World {
     this.water.uniforms.uRipple.value = strength;
   }
   update(dt: number, time: number, camera: THREE.Camera, focus: THREE.Vector3) {
+    this.sunken.update(camera, dt, time, focus);
+    this.petro.update(camera, dt, time, focus);
     windUniforms.uTime.value = time;
     rockUniforms.uTime.value = time;
     this.terrain.uniforms.uTime.value = time;
