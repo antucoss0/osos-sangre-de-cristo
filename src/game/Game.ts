@@ -68,6 +68,7 @@ export class Game {
   beaconLight = new THREE.PointLight(0xcfe6ff, 0, 30, 1.5);
   stoneLight = new THREE.PointLight(0xe4f0ff, 0, 20, 1.6);
   fill = new THREE.PointLight(0xffe2c4, 0, 14, 2);
+  finaleLight = false;
   headlamp = new THREE.SpotLight(0xfff1dc, 0, 30, 0.42, 0.55, 1.4);
   paused = false;
   touchUI: TouchControls | null = null;
@@ -270,6 +271,7 @@ export class Game {
           g.bear.perched = false;
           g.bear.auraLevel = 0;
           g.beacon.visible = false;
+          g.finaleLight = false;
           g.world.petro.items[0].glow = 0.12;
           g.player.char.mixer.timeScale = 1; g.nai.char.mixer.timeScale = 1;
           g.place(TRAIL_END, { x: 0, z: -10 });
@@ -783,8 +785,9 @@ export class Game {
     this.player.controllable = false;
     this.player.camMode = 'free';
     this.beacon.visible = false;
-    if (this.fsm.previous !== 'Chase') { this.place(EXIT, OUT); this.setTod(0.95); }
-    this.setTod(1, 1 / 10);
+    if (this.fsm.previous !== 'Chase') { this.place(EXIT, OUT); this.setTod(0.8); }
+    this.setTod(0.78, 1 / 6);
+    this.finaleLight = true;
     const out = G(OUT.x, OUT.z);
     const fwd = V(OUT.x - EXIT.x, 0, OUT.z - EXIT.z).normalize();
     const side = V(fwd.z, 0, -fwd.x);
@@ -792,7 +795,7 @@ export class Game {
     this.bear.perched = false;
     this.bear.place(watch.x, watch.z, Math.atan2(out.x - watch.x, out.z - watch.z));
     this.bear.target.copy(out);
-    this.bear.auraLevel = 1; this.bear.eyeGlow = 1;
+    this.bear.auraLevel = 0.55; this.bear.eyeGlow = 1;
     this.bear.fsm.go('Perch');
     this.bear.perched = false;
     for (const b of this.pack.bears) if (b.fsm.is('Lurk')) { b.exit.set(b.position.x - 30, 0, b.position.z - 40); b.fsm.go('Leave'); }
@@ -822,7 +825,7 @@ export class Game {
         onStart: () => this.say('exit_a'),
       },
       {
-        dur: 6.5, pos: () => mid().addScaledVector(fwd, 2.4).add(V(0, 1.75, 0)), look: watch.clone().add(V(0, 2.2, 0)), fov: 24, fov2: 20,
+        dur: 6.5, pos: () => mid().addScaledVector(fwd, 2.4).add(V(0, 1.75, 0)), look: watch.clone().add(V(0, 1.8, 0)), fov: 36, fov2: 32,
         focus: () => this.engine.camera.position.distanceTo(watch), range: 6, bokeh: 4,
         onStart: () => {
           this.player.char.velocity.set(0, 0, 0); this.nai.char.velocity.set(0, 0, 0);
@@ -865,7 +868,7 @@ export class Game {
     const night = this.world.sky.uniforms.uNight.value as number;
     const cam = this.engine.camera;
     this.fill.position.copy(cam.position).add(V(0.6, 0.5, 0));
-    this.fill.intensity = (this.director.playing ? 4 : 1.2) * (0.35 + night * 0.8);
+    this.fill.intensity = (this.director.playing ? (this.finaleLight ? 14 : 4) : 1.2) * (0.35 + night * 0.8);
     const head = this.player.char.bonePos('Head');
     this.headlamp.position.copy(head);
     this.headlamp.target.position.copy(head).addScaledVector(this.player.forward(), 7).add(V(0, -1.4, 0));
