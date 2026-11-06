@@ -120,7 +120,13 @@ export class Player {
     p.x += c.velocity.x * dt;
     p.z += c.velocity.z * dt;
     this.colliders.resolve(p, 0.35);
-    if (lakeDist(p.x, p.z) < 0.98 || Math.hypot(p.x, p.z) > 195) { p.x = ox; p.z = oz; }
+    const blocked = (x: number, z: number) => lakeDist(x, z) < 0.98 || Math.hypot(x, z) > 195;
+    if (blocked(p.x, p.z)) {
+      // slide along the shore / world edge instead of stopping dead
+      if (!blocked(p.x, oz)) p.z = oz;
+      else if (!blocked(ox, p.z)) p.x = ox;
+      else { p.x = ox; p.z = oz; }
+    }
     humanLocomotion(c, maxSpeed !== undefined && maxSpeed < 1);
   }
   snapCamera() {

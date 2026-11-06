@@ -85,7 +85,7 @@ export function createTalus(count = 2600) {
       new THREE.Vector3(x, heightAt(x, z) + s * 0.15 - (ld < 1.0 ? 0.3 : 0), z), q,
       new THREE.Vector3(s * (0.8 + r() * 0.5), s, s * (0.8 + r() * 0.5)));
     lists[Math.floor(r() * geos.length)].push(m);
-    if (s > 0.9) colliders.push({ x, z, r: s * 0.9 });
+    if (s > 1.0) colliders.push({ x, z, r: s * 0.72 });
     placed++;
   }
   geos.forEach((g, i) => {

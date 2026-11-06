@@ -79,6 +79,10 @@ export class Companion {
     this.fsm.go('Scripted');
   }
   update(dt: number) {
+    // personal space: never stand inside Antu
+    const pp = this.player.position, cp = this.char.position;
+    const sx = cp.x - pp.x, sz = cp.z - pp.z, sd = Math.hypot(sx, sz);
+    if (sd < 0.9 && sd > 1e-3) { cp.x = pp.x + (sx / sd) * 0.9; cp.z = pp.z + (sz / sd) * 0.9; }
     const p = this.player.position;
     const last = this.crumbs[this.crumbs.length - 1];
     if (!last || last.distanceTo(p) > 0.8) {

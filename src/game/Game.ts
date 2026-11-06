@@ -27,8 +27,8 @@ const G = (x: number, z: number, up = 0) => V(x, heightAt(x, z) + up, z);
 const START = { x: 6, z: 84 };
 const TRAIL_END = { x: 1, z: 60 };
 const CLIMB = { x: -76, z: 36 };
-const EXIT = { x: 2, z: 62 };
-const OUT = { x: 6, z: 86 };
+const EXIT = { x: 10, z: 112 };
+const OUT = { x: 14, z: 128 };
 const PACK_PLAN: { x: number; z: number; tree?: boolean }[] = [
   { x: -71, z: 36 }, { x: -60, z: 30, tree: true }, { x: -50, z: 50 }, { x: -47, z: 53 }, { x: -34, z: 44 },
   { x: -38, z: 58, tree: true }, { x: -20, z: 60 }, { x: -16, z: 63 }, { x: -6, z: 50 }, { x: -26, z: 48, tree: true },
@@ -67,6 +67,8 @@ export class Game {
   beacon = new THREE.Group();
   beaconLight = new THREE.PointLight(0xcfe6ff, 0, 30, 1.5);
   stoneLight = new THREE.PointLight(0xe4f0ff, 0, 20, 1.6);
+  fill = new THREE.PointLight(0xffe2c4, 0, 14, 2);
+  headlamp = new THREE.SpotLight(0xfff1dc, 0, 30, 0.42, 0.55, 1.4);
   paused = false;
   touchUI: TouchControls | null = null;
   constructor() {
@@ -97,15 +99,15 @@ export class Game {
     const scene = this.engine.scene;
     this.player = new Player(this.models.antu, this.input, this.world.colliders, this.engine.camera);
     this.nai = new Companion(this.models.nairoby, this.player, this.world.colliders);
+    this.pack = new Pack(this.models.bear, this.world.colliders, scene);
     this.bear = new Bear(this.models.bear, null, { scale: 2.3, eye: 0x9fe0ff, aura: true });
     this.bear.onEvent = (e, b) => this.bearSound(e, b);
-    this.pack = new Pack(this.models.bear, this.world.colliders, scene);
     this.pack.onEvent = (e, b) => this.bearSound(e, b);
     this.player.onStep = (run) => this.audio.step(run);
     scene.add(this.player.char.root, this.nai.char.root, this.bear.char.root, this.bear.eyes, this.bear.aura!, this.breath.points, this.breath2.points, this.flashLight, this.beacon);
     this.buildBeacon();
     this.stoneLight.position.copy(this.world.petro.items[0].center).add(V(0, 2, 0));
-    scene.add(this.stoneLight);
+    scene.add(this.stoneLight, this.fill, this.headlamp, this.headlamp.target);
     this.ui.progress(0.97, t('load_light'));
     this.place(START, TRAIL_END);
     this.engine.renderer.compile(scene, this.engine.camera);
@@ -441,7 +443,7 @@ export class Game {
     this.nai.lookTarget = glyph;
     const shots: Shot[] = [
       {
-        dur: 4.2, pos: glyph.clone().addScaledVector(toP, -3.4).add(V(1.2, 4.6, 0)), pos2: glyph.clone().addScaledVector(toP, -2.4).add(V(0.5, 3.2, 0)),
+        dur: 4.2, pos: glyph.clone().addScaledVector(toP, -6).add(V(1.6, 2.6, 0)), pos2: glyph.clone().addScaledVector(toP, -4.4).add(V(0.6, 1.9, 0)),
         look: glyph, fov: 36, fov2: 32, focus: () => this.engine.camera.position.distanceTo(glyph), range: 2, bokeh: 4, ease: ease.inOut,
         onStart: () => { this.say('glyph_n'); this.player.char.faceTowards(glyph.x, glyph.z, 1, 50); this.audio.chime(); },
       },
@@ -525,7 +527,7 @@ export class Game {
         dur: 2.0, pos: (k: number) => path.getPoint(0.2 + k * 0.8).add(V(0, 1.1, 0)), look: (k: number) => path.getPoint(Math.min(1, 0.3 + k * 0.8)).add(V(0, -0.6, 0)),
         fov: 76, roll: 0, roll2: Math.PI * 2.6, ease: ease.in, shake: 2.5,
         onStart: () => { slow(1); this.setFx('radial', 1.3, 6); this.setFx('desat', 0.1, 2); this.audio.whoosh(2); },
-        onUpdate: (k: number) => { body(0.2 + k * 0.8); this.player.char.root.rotation.x = k * 9; if (k > 0.8) this.setFx('fade', 1, 8); },
+        onUpdate: (k: number) => { body(0.2 + k * 0.8); this.player.char.root.rotation.x = Math.sin(k * Math.PI) * 1.5 + k * 0.6; this.player.char.root.rotation.z = Math.sin(k * Math.PI * 2) * 0.55; if (k > 0.8) this.setFx('fade', 1, 8); },
       },
       {
         dur: 1.5, pos: wake.clone().add(V(9, 7, 11)), pos2: wake.clone().add(V(7.5, 5.5, 9)), look: wake.clone().add(V(0, 0.3, 0)), fov: 40, shake: 1.5,
@@ -774,43 +776,112 @@ export class Game {
     });
   }
 
-  // ───────────────────────── Finale (~12 s)
+  // ───────────────────────── Finale (~34 s)
   playFinale() {
     this.ui.clearHUD();
     this.ui.menuButton(true);
     this.player.controllable = false;
     this.player.camMode = 'free';
     this.beacon.visible = false;
-    if (this.fsm.previous !== 'Chase') { this.place(EXIT, OUT); this.setTod(0.9); }
-    this.setTod(1, 1 / 8);
-    const p = this.player.position.clone();
+    if (this.fsm.previous !== 'Chase') { this.place(EXIT, OUT); this.setTod(0.95); }
+    this.setTod(1, 1 / 10);
     const out = G(OUT.x, OUT.z);
-    this.bear.exit.copy(G(BEAR_TREE.x, BEAR_TREE.z));
-    if (this.bear.char.root.visible) this.bear.fsm.go('Accept');
-    for (const b of this.pack.bears) if (b.fsm.is('Lurk')) { b.exit.set(b.position.x * 1.4, 0, b.position.z - 40); b.fsm.go('Leave'); }
+    const fwd = V(OUT.x - EXIT.x, 0, OUT.z - EXIT.z).normalize();
+    const side = V(fwd.z, 0, -fwd.x);
+    const watch = G(EXIT.x - fwd.x * 18 + side.x * 3, EXIT.z - fwd.z * 18 + side.z * 3);
+    this.bear.perched = false;
+    this.bear.place(watch.x, watch.z, Math.atan2(out.x - watch.x, out.z - watch.z));
+    this.bear.target.copy(out);
+    this.bear.auraLevel = 1; this.bear.eyeGlow = 1;
+    this.bear.fsm.go('Perch');
+    this.bear.perched = false;
+    for (const b of this.pack.bears) if (b.fsm.is('Lurk')) { b.exit.set(b.position.x - 30, 0, b.position.z - 40); b.fsm.go('Leave'); }
     this.audio.tension = 0; this.audio.heartRate = 0;
     this.setFx('edge', 0, 1); this.setFx('desat', 0.05, 1);
+    const pc = () => this.player.position, nc = () => this.nai.char.position;
+    const mid = () => pc().clone().lerp(nc(), 0.5);
+    let turned = false;
     const shots: Shot[] = [
       {
-        dur: 6.5, pos: p.clone().add(V(0, 1.5, 5)), pos2: p.clone().add(V(0.5, 1.6, 8)), look: () => this.player.position.clone().add(V(0, 1.3, 0)), fov: 34,
-        focus: () => this.engine.camera.position.distanceTo(this.player.position), range: 3, bokeh: 3,
+        dur: 5, pos: () => mid().addScaledVector(fwd, 4.6).add(V(0, 0.55, 0)), look: () => mid().add(V(0, 1.2, 0)), fov: 30,
+        focus: () => this.engine.camera.position.distanceTo(mid()), range: 2.5, bokeh: 5,
         onStart: () => {
-          this.player.walkTo(out, 1.3);
-          this.nai.walkTo(out.clone().add(V(1, 0, -1)), 1.3);
-          this.later(0.5, () => this.sayChain(['exit_n', 'exit_a'], 0.5));
+          this.player.walkTo(out, 3.2);
+          this.nai.walkTo(out.clone().addScaledVector(side, 1.2), 3.2);
+          this.later(2.6, () => { this.player.walkTo(out, 1.1); this.nai.walkTo(out.clone().addScaledVector(side, 1.2), 1.1); });
         },
       },
       {
-        dur: 7, pos: () => this.player.position.clone().add(V(-4, 2, -3)), pos2: V(10, 70, 120), look: () => this.player.position.clone().add(V(0, 1, 0)), look2: V(0, 30, -120),
-        fov: 36, fov2: 48, ease: ease.inOutQuint, focus: 200, bokeh: 0.5,
-        onStart: () => { this.audio.sting(); this.ui.subtitle('', t('mountain'), 4); },
-        onUpdate: (k) => { if (k > 0.7) this.setFx('fade', 0.55, 0.6); },
+        dur: 4.6, pos: () => nc().clone().addScaledVector(side, 1.4).addScaledVector(fwd, 0.6).add(V(0, 1.5, 0)), look: () => nc().clone().add(V(0, 1.5, 0)), fov: 26,
+        focus: () => this.engine.camera.position.distanceTo(nc()), range: 1, bokeh: 7,
+        onStart: () => this.say('exit_n'),
+      },
+      {
+        dur: 4.8, pos: () => pc().clone().addScaledVector(side, -1.4).addScaledVector(fwd, 0.6).add(V(0, 1.55, 0)), look: () => pc().clone().add(V(0, 1.55, 0)), fov: 26,
+        focus: () => this.engine.camera.position.distanceTo(pc()), range: 1, bokeh: 7,
+        onStart: () => this.say('exit_a'),
+      },
+      {
+        dur: 6.5, pos: () => mid().addScaledVector(fwd, 2.4).add(V(0, 1.75, 0)), look: watch.clone().add(V(0, 2.2, 0)), fov: 24, fov2: 20,
+        focus: () => this.engine.camera.position.distanceTo(watch), range: 6, bokeh: 4,
+        onStart: () => {
+          this.player.char.velocity.set(0, 0, 0); this.nai.char.velocity.set(0, 0, 0);
+          this.player.walkTo(pc().clone(), 1); this.nai.walkTo(nc().clone(), 1);
+          this.player.char.faceTowards(watch.x, watch.z, 1, 50);
+          this.nai.lookTarget = watch;
+          this.audio.huff(20);
+        },
+        onUpdate: (k: number) => {
+          this.player.char.faceTowards(watch.x, watch.z, 0.05, 6);
+          if (k > 0.55 && !turned) {
+            turned = true;
+            this.bear.perched = false;
+            this.bear.exit.copy(G(watch.x - fwd.x * 30, watch.z - fwd.z * 30));
+            this.bear.fsm.go('Accept');
+          }
+        },
+      },
+      {
+        dur: 5.5, pos: () => mid().addScaledVector(side, 5).add(V(0, 1.4, 0)), pos2: () => mid().addScaledVector(side, 3.8).add(V(0, 1.5, 0)), look: () => mid().add(V(0, 1.4, 0)), fov: 32,
+        focus: () => this.engine.camera.position.distanceTo(mid()), range: 2, bokeh: 4,
+        onStart: () => { this.nai.lookTarget = this.player.position; this.audio.sting(); },
+        onUpdate: () => this.player.char.faceTowards(nc().x, nc().z, 0.05, 4),
+      },
+      {
+        dur: 9, pos: () => mid().addScaledVector(side, 3.8).add(V(0, 1.5, 0)), pos2: V(OUT.x + 20, 75, OUT.z + 40), look: () => mid().add(V(0, 1.2, 0)), look2: V(-20, 30, -120),
+        fov: 34, fov2: 48, ease: ease.inOutQuint, focus: 200, bokeh: 0.5,
+        onStart: () => this.ui.subtitle('', t('mountain'), 4.5),
+        onUpdate: (k: number) => { if (k > 0.72) this.setFx('fade', 0.55, 0.6); },
       },
     ];
     this.director.play(shots, () => {
       this.ui.credits(() => this.goMenu());
       this.director.letterboxTarget = 1;
     });
+  }
+
+  /** Soft key/fill light that travels with the camera, and Antu's headlamp once night falls. */
+  private updateLights() {
+    const night = this.world.sky.uniforms.uNight.value as number;
+    const cam = this.engine.camera;
+    this.fill.position.copy(cam.position).add(V(0.6, 0.5, 0));
+    this.fill.intensity = (this.director.playing ? 4 : 1.2) * (0.35 + night * 0.8);
+    const head = this.player.char.bonePos('Head');
+    this.headlamp.position.copy(head);
+    this.headlamp.target.position.copy(head).addScaledVector(this.player.forward(), 7).add(V(0, -1.4, 0));
+    const on = night > 0.35 && this.player.char.root.visible && !this.fsm.is('Lobby');
+    this.headlamp.intensity += ((on ? 70 * (night - 0.3) : 0) - this.headlamp.intensity) * 0.1;
+  }
+
+  /** Keep bodies from interpenetrating: Antu is pushed out of any grounded bear. */
+  private separate() {
+    const p = this.player.position;
+    for (const b of [this.bear, ...this.pack.bears]) {
+      if (!b.char.root.visible || b.perched) continue;
+      const r = 0.35 + b.char.model.scale.x * 0.72;
+      const dx = p.x - b.position.x, dz = p.z - b.position.z, d = Math.hypot(dx, dz);
+      if (d < r && d > 1e-3) { p.x = b.position.x + (dx / d) * r; p.z = b.position.z + (dz / d) * r; }
+    }
   }
 
   // ───────────────────────── Loop
@@ -843,11 +914,13 @@ export class Game {
     this.fsm.update(dt);
     if (this.player.controllable) this.ui.lock(!inp.locked);
     this.player.update(dt, this.time);
+    this.separate();
     this.nai.update(dt);
     this.bear.update(dt, this.engine.camera);
     this.pack.update(dt, this.player.position, this.engine.camera, clamp(this.tod.v * 2, 0, 1));
     if (!this.director.playing && this.player.camMode !== 'free') this.player.updateCamera(dt, this.time);
     this.director.update(dt, this.time);
+    this.updateLights();
     if (!this.director.playing && this.player.camMode === 'third') {
       const cam = this.engine.camera;
       const f = this.engine.baseFov + Math.sin(this.time * 0.8) * this.fx.psy.v * 3.5 + (this.fsm.is('Chase') ? clamp(speedOf(this.player.char) - 2, 0, 2.5) * 3 : 0);

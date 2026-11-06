@@ -30,6 +30,8 @@ export class Bear {
   auraLevel = 0;
   perched = false;
   gap = 6.5;
+  private baseScale = 0;
+  private breathPhase = Math.random() * 6;
   surging = 0;
   private surgeT = 0;
   private leapFrom = new THREE.Vector3();
@@ -185,6 +187,12 @@ export class Bear {
     this.time += dt;
     this.fsm.update(dt);
     this.char.update(dt, !this.perched);
+    // breathing: slow chest swell, faster when agitated or after running
+    if (this.baseScale === 0) this.baseScale = this.char.model.scale.x;
+    const rate = 1.4 + this.agitation * 2.2 + Math.min(2, speedOf(this.char)) * 0.6;
+    this.breathPhase += dt * rate;
+    const br = Math.sin(this.breathPhase) * (0.012 + this.agitation * 0.01);
+    this.char.model.scale.set(this.baseScale * (1 + br * 0.6), this.baseScale * (1 + br), this.baseScale * (1 + br * 0.3));
     if (this.fsm.is('Cling')) this.char.root.rotation.set(-1.2, this.char.heading, 0, 'YXZ');
     if (this.aura) {
       const s = this.char.model.scale.x;

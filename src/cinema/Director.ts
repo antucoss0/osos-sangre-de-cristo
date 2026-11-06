@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Engine } from '../core/Engine';
 import { clamp } from '../core/noise';
+import { heightAt, lakeDist, WATER_Y } from '../world/Terrain';
 
 type V = THREE.Vector3 | ((t: number) => THREE.Vector3);
 
@@ -37,6 +38,7 @@ export class Director {
   index = -1;
   t = 0;
   playing = false;
+  private sm = new THREE.Vector3();
   letterbox = 0;
   letterboxTarget = 0;
   onDone: (() => void) | null = null;
@@ -89,7 +91,12 @@ export class Director {
     if (s.pos2) { this.val(s.pos2, raw, this.b); this.a.lerp(this.b, k); }
     this.val(s.look, raw, this.la);
     if (s.look2) { this.val(s.look2, raw, this.lb); this.la.lerp(this.lb, k); }
-    cam.position.copy(this.a);
+    // never clip into the ground or under the water surface
+    const ground = lakeDist(this.a.x, this.a.z) < 1 ? Math.max(WATER_Y, heightAt(this.a.x, this.a.z)) : heightAt(this.a.x, this.a.z);
+    this.a.y = Math.max(this.a.y, ground + 0.35);
+    // camera weight: a light spring on the rail (snaps on cuts)
+    if (this.t <= dt * 1.5) this.sm.copy(this.a); else this.sm.lerp(this.a, 1 - Math.exp(-9 * dt));
+    cam.position.copy(this.sm);
     if (s.shake) {
       const sh = s.shake;
       cam.position.x += (Math.sin(time * 13.1) + Math.sin(time * 7.3)) * 0.02 * sh;
