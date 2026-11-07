@@ -69,6 +69,7 @@ export class Game {
   stoneLight = new THREE.PointLight(0xe4f0ff, 0, 20, 1.6);
   fill = new THREE.PointLight(0xffe2c4, 0, 14, 2);
   finaleLight = false;
+  sawLake = false;
   headlamp = new THREE.SpotLight(0xfff1dc, 0, 30, 0.42, 0.55, 1.4);
   paused = false;
   touchUI: TouchControls | null = null;
@@ -272,6 +273,7 @@ export class Game {
           g.bear.auraLevel = 0;
           g.beacon.visible = false;
           g.finaleLight = false;
+          g.sawLake = false;
           g.world.petro.items[0].glow = 0.12;
           g.player.char.mixer.timeScale = 1; g.nai.char.mixer.timeScale = 1;
           g.place(TRAIL_END, { x: 0, z: -10 });
@@ -310,9 +312,14 @@ export class Game {
           g.audio.tension = 0;
           g.later(5, () => g.say('lake_n'));
         },
-        update: (g: Game) => {
+        update: (g: Game, _dt: number, tt: number) => {
           const p = g.player.position;
-          if (lakeDist(p.x, p.z) < 1.42) return 'Glint';
+          if (g.nearStoneNow()) return 'Fall';
+          const atLake = lakeDist(p.x, p.z) < 1.5;
+          if (atLake && !g.sawLake) { g.sawLake = true; g.ui.objective(t('obj_explore')); g.ui.hint(t('hint_glyph'), 6); }
+          // the underwater carvings start the story only when you walk up to them
+          const nearGlyph = g.world.sunken.items.some((it) => Math.hypot(it.center.x - p.x, it.center.z - p.z) < 16);
+          if (nearGlyph && tt > 2) return 'Glint';
         },
       },
       Glint: { enter: (g: Game) => g.playGlint() },
@@ -329,7 +336,8 @@ export class Game {
           const p = g.player.position;
           const d = Math.hypot(p.x - CLIMB.x, p.z - CLIMB.z);
           g.ui.objective(`${t('obj_around')} · ${Math.round(d)} m`);
-          if (d < 7) return 'Climb';
+          if (g.nearStoneNow()) return 'Fall';
+          if (d < 7 || Math.hypot(p.x - STONE.x, p.z - STONE.z) < 26) return 'Climb';
         },
       },
       Climb: {
@@ -348,7 +356,7 @@ export class Game {
           if (near && !g.nearStone) g.ui.hint(t(g.input.touch ? 'hint_touch_mob' : 'hint_touch_desk'), 6);
           g.nearStone = near;
           g.world.petro.items[0].glow = Math.max(g.world.petro.items[0].glow, near ? 0.35 : 0.12);
-          if ((near && g.input.pressed('KeyE')) || d < 3.7) return 'Fall';
+          if ((near && g.input.pressed('KeyE')) || g.nearStoneNow()) return 'Fall';
         },
         exit: (g: Game) => { g.nearStone = false; g.ui.hint(null); },
       },
@@ -861,6 +869,11 @@ export class Game {
       this.ui.credits(() => this.goMenu());
       this.director.letterboxTarget = 1;
     });
+  }
+
+  nearStoneNow() {
+    const p = this.player.position;
+    return Math.hypot(p.x - STONE.x, p.z - STONE.z) < 3.9;
   }
 
   /** Soft key/fill light that travels with the camera, and Antu's headlamp once night falls. */

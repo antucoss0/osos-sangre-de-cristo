@@ -79,6 +79,8 @@ const S = {
   cap2: ['Vinieron a la montaña a encontrarse.', 'They came to the mountain to find themselves.'],
   cap_bear: ['Algo los observa desde lo alto.', 'Something watches them from above.'],
   obj_lake: ['Sal del sendero y busca el lago', 'Leave the trail and find the lake'],
+  obj_explore: ['Explora el lago', 'Explore the lake'],
+  hint_glyph: ['Algo brilla bajo el agua, cerca de la orilla.', 'Something glows under the water, near the shore.'],
   obj_around: ['Rodea el lago', 'Go around the lake'],
   obj_climb: ['Sube hacia el destello', 'Climb toward the glint'],
   hint_touch_desk: ['Pulsa E para tocar la piedra', 'Press E to touch the stone'],

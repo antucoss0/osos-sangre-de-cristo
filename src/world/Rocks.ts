@@ -73,7 +73,7 @@ export function createTalus(count = 2600) {
     if (Math.hypot(x - WAKE.x, z - WAKE.z) < 8 || Math.hypot(x - BEAR_TREE.x, z - BEAR_TREE.z) < 5) continue;
     const t = talusMask(x, z);
     const ld = lakeDist(x, z);
-    const shoreBand = ld > 0.92 && ld < 1.22 ? 1 : 0;
+    const shoreBand = ld > 0.92 && ld < 1.22 ? 0.5 : 0;
     const p = Math.max(t, shoreBand);
     if (r() > p * p) continue;
     const big = r() < 0.08;
@@ -85,7 +85,7 @@ export function createTalus(count = 2600) {
       new THREE.Vector3(x, heightAt(x, z) + s * 0.15 - (ld < 1.0 ? 0.3 : 0), z), q,
       new THREE.Vector3(s * (0.8 + r() * 0.5), s, s * (0.8 + r() * 0.5)));
     lists[Math.floor(r() * geos.length)].push(m);
-    if (s > 1.0) colliders.push({ x, z, r: s * 0.72 });
+    if (s > 1.0) colliders.push({ x, z, r: s * 0.62 });
     placed++;
   }
   geos.forEach((g, i) => {
